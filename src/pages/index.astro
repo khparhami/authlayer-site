@@ -1,0 +1,277 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import BlogCard from '@/components/BlogCard.astro';
+import { getCollection } from 'astro:content';
+
+const posts = (await getCollection('blog'))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+
+const featured = posts.filter(p => p.data.featured).slice(0, 1);
+const recent = posts.slice(0, 6);
+
+const topics = [
+  { label: 'OAuth 2.0', icon: '⚡', href: '/blog?tag=oauth', desc: 'Authorization framework fundamentals' },
+  { label: 'JWT', icon: '🔑', href: '/blog?tag=jwt', desc: 'Tokens, claims, and signing algorithms' },
+  { label: 'MFA', icon: '🛡', href: '/blog?tag=mfa', desc: 'Multi-factor authentication methods' },
+  { label: 'Passkeys', icon: '🔐', href: '/blog?tag=passkeys', desc: 'Passwordless future with FIDO2' },
+  { label: 'Zero Trust', icon: '🔒', href: '/blog?tag=zero-trust', desc: 'Never trust, always verify' },
+  { label: 'API Security', icon: '🌐', href: '/blog?tag=api-security', desc: 'Securing APIs and microservices' },
+];
+---
+
+<BaseLayout
+  title="AuthLayer — Authentication & Cybersecurity Guides"
+  description="Plain-English guides to OAuth 2.0, JWT, MFA, passkeys, zero trust, and API security. Learn modern authentication without the jargon."
+>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        Authentication & Cybersecurity
+      </div>
+      <h1>
+        Understand Auth.<br />
+        <span class="gradient-text">Without the Jargon.</span>
+      </h1>
+      <p class="hero-sub">
+        Deep dives into OAuth 2.0, JWT, MFA, passkeys, zero trust, and API security.
+        Built for developers who want to get it right.
+      </p>
+      <div class="hero-actions">
+        <a href="/blog" class="btn btn-primary">Read the Blog</a>
+        <a href="/about" class="btn btn-ghost">About AuthLayer</a>
+      </div>
+    </div>
+    <div class="hero-glow" aria-hidden="true"></div>
+  </section>
+
+  <!-- Topics -->
+  <section class="topics">
+    <div class="container">
+      <h2 class="section-title">Explore by Topic</h2>
+      <div class="topic-grid">
+        {topics.map(t => (
+          <a href={t.href} class="topic-card">
+            <span class="topic-icon">{t.icon}</span>
+            <div>
+              <strong>{t.label}</strong>
+              <p>{t.desc}</p>
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured -->
+  {featured.length > 0 && (
+    <section class="featured-section">
+      <div class="container">
+        <h2 class="section-title">Featured</h2>
+        <BlogCard post={featured[0]} featured={true} />
+      </div>
+    </section>
+  )}
+
+  <!-- Recent Posts -->
+  <section class="recent-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Latest Articles</h2>
+        <a href="/blog" class="see-all">See all →</a>
+      </div>
+      <div class="posts-grid">
+        {recent.map(post => <BlogCard post={post} />)}
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-card">
+        <h2>Stay sharp on auth security</h2>
+        <p>New articles on authentication, identity, and zero-trust architecture — published regularly.</p>
+        <a href="/blog" class="btn btn-primary">Browse all articles</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  /* Hero */
+  .hero {
+    position: relative;
+    padding: 6rem 0 5rem;
+    overflow: hidden;
+    text-align: center;
+  }
+
+  .hero-glow {
+    position: absolute;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 9999px;
+    padding: 0.35rem 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .dot {
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .hero h1 {
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    color: #fff;
+    letter-spacing: -0.03em;
+    margin-bottom: 1.25rem;
+    line-height: 1.15;
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    font-size: 1.15rem;
+    color: var(--text-dim);
+    max-width: 560px;
+    margin: 0 auto 2rem;
+  }
+
+  .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+  /* Buttons */
+  .btn {
+    display: inline-block;
+    padding: 0.65rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .btn-primary:hover {
+    background: #7dd3fc;
+    text-decoration: none;
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  /* Sections */
+  .topics, .featured-section, .recent-section, .cta-section {
+    padding: 4rem 0;
+  }
+
+  .section-title {
+    font-size: 1.4rem;
+    color: #fff;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  .see-all { color: var(--accent); font-size: 0.9rem; }
+
+  /* Topic grid */
+  .topic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+
+  .topic-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    text-decoration: none;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .topic-card:hover {
+    border-color: rgba(56, 189, 248, 0.35);
+    transform: translateY(-2px);
+    text-decoration: none;
+  }
+
+  .topic-icon { font-size: 1.5rem; flex-shrink: 0; }
+
+  .topic-card strong { color: #fff; font-size: 0.95rem; display: block; margin-bottom: 0.2rem; }
+
+  .topic-card p { color: var(--text-muted); font-size: 0.8rem; margin: 0; }
+
+  /* Posts grid */
+  .posts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+  }
+
+  /* CTA */
+  .cta-card {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.06), rgba(129, 140, 248, 0.06));
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 14px;
+    padding: 3rem 2rem;
+    text-align: center;
+  }
+
+  .cta-card h2 { color: #fff; font-size: 1.75rem; margin-bottom: 0.75rem; }
+  .cta-card p { color: var(--text-dim); margin-bottom: 1.5rem; }
+</style>

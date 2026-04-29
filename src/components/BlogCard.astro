@@ -1,0 +1,79 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  post: CollectionEntry<'blog'>;
+  featured?: boolean;
+}
+
+const { post, featured = false } = Astro.props;
+const { title, description, pubDate, tags, author } = post.data;
+const formattedDate = pubDate.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' });
+---
+
+<article class:list={['card', { 'card--featured': featured }]}>
+  <div class="card-tags">
+    {tags.slice(0, 2).map(t => <span class="tag">{t}</span>)}
+  </div>
+  <h2 class="card-title">
+    <a href={`/blog/${post.slug}`}>{title}</a>
+  </h2>
+  <p class="card-desc">{description}</p>
+  <footer class="card-meta">
+    <span>{author}</span>
+    <span class="sep">·</span>
+    <time datetime={pubDate.toISOString()}>{formattedDate}</time>
+  </footer>
+</article>
+
+<style>
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .card:hover {
+    border-color: rgba(56, 189, 248, 0.4);
+    transform: translateY(-2px);
+  }
+
+  .card--featured {
+    border-color: rgba(56, 189, 248, 0.25);
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.04), var(--bg-card));
+  }
+
+  .card-tags { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+  .card-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .card-title a {
+    color: #fff;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .card-title a:hover { color: var(--accent); text-decoration: none; }
+
+  .card-desc { color: var(--text-muted); font-size: 0.9rem; flex: 1; }
+
+  .card-meta {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: auto;
+  }
+
+  .sep { color: var(--border); }
+</style>

@@ -1,0 +1,2 @@
+# Cloudflare Pages redirect rules
+/feed    /rss.xml    301

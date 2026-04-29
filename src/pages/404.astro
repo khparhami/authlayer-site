@@ -1,0 +1,52 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="404 — Page Not Found | AuthLayer" description="The page you're looking for doesn't exist.">
+  <section class="not-found">
+    <div class="container">
+      <span class="code">404</span>
+      <h1>Page not found</h1>
+      <p>The page you're looking for has moved or doesn't exist.</p>
+      <a href="/" class="btn">Back to Home</a>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .not-found {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    padding: 4rem 1.5rem;
+  }
+
+  .code {
+    display: block;
+    font-size: 5rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 1rem;
+  }
+
+  h1 { color: #fff; font-size: 1.75rem; margin-bottom: 0.75rem; }
+  p { color: var(--text-muted); margin-bottom: 2rem; }
+
+  .btn {
+    display: inline-block;
+    padding: 0.65rem 1.5rem;
+    background: var(--accent);
+    color: #000;
+    border-radius: 8px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .btn:hover { background: #7dd3fc; text-decoration: none; }
+</style>

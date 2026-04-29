@@ -1,0 +1,67 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import BlogCard from '@/components/BlogCard.astro';
+import { getCollection } from 'astro:content';
+
+const allPosts = (await getCollection('blog'))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf());
+
+const allTags = [...new Set(allPosts.flatMap(p => p.data.tags))].sort();
+---
+
+<BaseLayout
+  title="Blog | AuthLayer — Authentication & Cybersecurity"
+  description="All articles on authentication, OAuth 2.0, JWT, MFA, passkeys, zero trust, and API security."
+>
+  <section class="blog-page">
+    <div class="container">
+      <header class="page-header">
+        <h1>All Articles</h1>
+        <p>{allPosts.length} articles on authentication and cybersecurity</p>
+      </header>
+
+      <div class="tag-filter">
+        <span class="filter-label">Filter:</span>
+        {allTags.map(tag => (
+          <a href={`/blog?tag=${tag}`} class="tag">{tag}</a>
+        ))}
+      </div>
+
+      <div class="posts-grid">
+        {allPosts.map(post => <BlogCard post={post} />)}
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .blog-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2rem; }
+
+  .page-header h1 { font-size: 2rem; color: #fff; margin-bottom: 0.4rem; }
+
+  .page-header p { color: var(--text-muted); }
+
+  .tag-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 2.5rem;
+  }
+
+  .filter-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    margin-right: 0.25rem;
+  }
+
+  .posts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+  }
+</style>

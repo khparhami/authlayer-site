@@ -1,0 +1,94 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <span class="logo-text">Auth<span class="accent">Layer</span></span>
+      <p>Plain-English guides to authentication and cybersecurity.</p>
+    </div>
+
+    <nav class="footer-nav" aria-label="Footer navigation">
+      <div class="footer-col">
+        <h3>Content</h3>
+        <ul>
+          <li><a href="/blog">All Articles</a></li>
+          <li><a href="/blog?tag=guide">Guides</a></li>
+          <li><a href="/blog?tag=oauth">OAuth & OIDC</a></li>
+          <li><a href="/blog?tag=mfa">MFA</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h3>Site</h3>
+        <ul>
+          <li><a href="/about">About</a></li>
+          <li><a href="/sitemap-index.xml">Sitemap</a></li>
+        </ul>
+      </div>
+    </nav>
+  </div>
+
+  <div class="footer-bottom">
+    <div class="container">
+      <p>&copy; {year} AuthLayer. All rights reserved.</p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    margin-top: auto;
+  }
+
+  .footer-inner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 3rem;
+    padding: 3rem 1.5rem 2rem;
+  }
+
+  .footer-brand p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+    max-width: 280px;
+  }
+
+  .logo-text { font-weight: 800; font-size: 1.1rem; color: #fff; }
+  .accent { color: var(--accent); }
+
+  .footer-nav { display: flex; gap: 3rem; }
+
+  .footer-col h3 {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .footer-col a {
+    color: var(--text-dim);
+    font-size: 0.875rem;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .footer-col a:hover { color: var(--accent); text-decoration: none; }
+
+  .footer-bottom {
+    border-top: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+  }
+
+  .footer-bottom p { font-size: 0.8rem; color: var(--text-muted); }
+
+  @media (max-width: 640px) {
+    .footer-inner { grid-template-columns: 1fr; }
+  }
+</style>

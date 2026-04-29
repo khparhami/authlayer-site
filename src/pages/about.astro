@@ -1,0 +1,98 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="About | AuthLayer"
+  description="AuthLayer publishes plain-English guides to authentication, identity, and cybersecurity for developers and security engineers."
+>
+  <section class="about-page">
+    <div class="container">
+      <header class="page-header">
+        <span class="tag">About</span>
+        <h1>What is AuthLayer?</h1>
+      </header>
+
+      <div class="about-body">
+        <p>
+          <strong>AuthLayer</strong> is a content site dedicated to making authentication and
+          cybersecurity accessible to developers, architects, and security engineers.
+        </p>
+
+        <p>
+          Identity and authentication are the front door to every system — yet the specs are dense,
+          the terminology is inconsistent, and the pitfalls are subtle. AuthLayer exists to close
+          that gap with clear, technically accurate writing.
+        </p>
+
+        <h2>What we cover</h2>
+        <ul>
+          <li><strong>OAuth 2.0 & OIDC</strong> — authorization flows, grant types, token handling</li>
+          <li><strong>JWT</strong> — structure, signing algorithms, validation, common vulnerabilities</li>
+          <li><strong>Multi-factor authentication</strong> — TOTP, FIDO2, WebAuthn, push notifications</li>
+          <li><strong>Passkeys</strong> — the passwordless future powered by FIDO2/WebAuthn</li>
+          <li><strong>Zero Trust</strong> — identity-centric security architecture</li>
+          <li><strong>API Security</strong> — securing REST and GraphQL APIs</li>
+          <li><strong>Identity Providers</strong> — Okta, Auth0, AWS Cognito, Azure AD and more</li>
+        </ul>
+
+        <h2>Who writes this?</h2>
+        <p>
+          Articles are written by practitioners with hands-on experience in identity platforms,
+          cloud infrastructure, and application security. We focus on accuracy, depth, and
+          practical implementation over surface-level tutorials.
+        </p>
+
+        <h2>Found an error?</h2>
+        <p>
+          Security content needs to be accurate. If you spot a mistake, outdated information,
+          or a misleading claim — please reach out. Corrections are always welcome.
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .about-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2rem; }
+  .page-header .tag { margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; }
+
+  .about-body { max-width: 700px; }
+
+  .about-body p { color: var(--text-dim); margin-bottom: 1.25rem; }
+
+  .about-body h2 {
+    font-size: 1.3rem;
+    color: #fff;
+    margin: 2.5rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .about-body ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .about-body li {
+    color: var(--text-dim);
+    padding-left: 1.25rem;
+    position: relative;
+  }
+
+  .about-body li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 0.85rem;
+  }
+
+  .about-body strong { color: var(--text); }
+</style>
