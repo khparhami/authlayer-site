@@ -1,5 +1,6 @@
 ---
 import BaseLayout from './BaseLayout.astro';
+import AdUnit from '@/components/AdUnit.astro';
 import type { CollectionEntry } from 'astro:content';
 
 interface Props {
@@ -35,9 +36,13 @@ const formattedUpd = updatedDate?.toLocaleDateString('en-AU', { year: 'numeric',
         <p class="post-description">{description}</p>
       </header>
 
+      <AdUnit slot="2910852937" format="horizontal" />
+
       <div class="post-body prose">
         <slot />
       </div>
+
+      <AdUnit slot="2910852937" format="auto" />
 
       <footer class="post-footer">
         <a href="/blog" class="back-link">← Back to all articles</a>
