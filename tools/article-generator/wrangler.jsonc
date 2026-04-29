@@ -1,0 +1,8 @@
+{
+  "name": "authlayer-article-generator",
+  "main": "src/index.js",
+  "compatibility_date": "2026-04-29",
+  "ai": {
+    "binding": "AI"
+  }
+}
