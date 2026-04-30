@@ -10,13 +10,14 @@ interface Props {
 const { post } = Astro.props;
 const { title, description, pubDate, updatedDate, author, tags } = post.data;
 
+const ogImage = new URL(`/og/${post.slug}.png`, Astro.site).href;
 const linkedInShareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(Astro.url.href)}`;
 
 const formattedPub = pubDate.toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' });
 const formattedUpd = updatedDate?.toLocaleDateString('en-AU', { year: 'numeric', month: 'long', day: 'numeric' });
 ---
 
-<BaseLayout title={`${title} | AuthLayer`} description={description}>
+<BaseLayout title={`${title} | AuthLayer`} description={description} image={ogImage}>
   <article class="post-wrap">
     <div class="container">
       <header class="post-header">

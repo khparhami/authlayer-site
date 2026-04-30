@@ -9,8 +9,11 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^4.15.0",
+    "@astrojs/cloudflare": "^11.0.0",
     "@astrojs/sitemap": "^3.1.0",
-    "@astrojs/cloudflare": "^11.0.0"
+    "@fontsource/inter": "^5.2.8",
+    "@resvg/resvg-js": "^2.6.2",
+    "astro": "^4.15.0",
+    "satori": "^0.26.0"
   }
 }
