@@ -4,6 +4,7 @@ description: "Passkeys use public-key cryptography to replace passwords entirely
 pubDate: 2026-03-10
 author: "AuthLayer Team"
 tags: ["passkeys", "fido2", "security", "guide"]
+image: "/images/og/passkeys.jpg"
 ---
 
 Passwords have been the dominant authentication mechanism for 60 years. They're also a catastrophic source of breaches — credential stuffing, phishing, password reuse, and weak choices are behind the majority of account takeovers. Passkeys solve all of this at the cryptographic level.

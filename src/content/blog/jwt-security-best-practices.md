@@ -4,6 +4,7 @@ description: "JWTs are everywhere — and so are JWT vulnerabilities. Learn the 
 pubDate: 2026-02-03
 author: "AuthLayer Team"
 tags: ["jwt", "security", "vulnerabilities"]
+image: "/images/og/jwt.jpg"
 ---
 
 JSON Web Tokens are used in virtually every modern web application. They're also one of the most frequently misconfigured pieces of auth infrastructure. This guide covers the real-world attacks and the defences that work.

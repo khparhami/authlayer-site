@@ -4,6 +4,7 @@ description: "Microsoft just patched an Entra ID privilege escalation bug that a
 pubDate: 2026-04-29
 author: "AuthLayer Team"
 tags: ["security", "azure", "identity", "vulnerabilities"]
+image: "/images/og/entra.jpg"
 featured: false
 ---
 

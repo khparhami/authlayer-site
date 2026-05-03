@@ -4,6 +4,7 @@ description: "A practical comparison of every major MFA method — TOTP authenti
 pubDate: 2026-02-20
 author: "AuthLayer Team"
 tags: ["mfa", "security", "guide", "fido2"]
+image: "/images/og/mfa.jpg"
 ---
 
 Multi-factor authentication is the single most impactful security control you can add to an authentication flow. But not all MFA is equal — SMS OTP and FIDO2 hardware keys sit at opposite ends of the security spectrum. Here's how to choose.

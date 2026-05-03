@@ -4,6 +4,7 @@ description: "The Vercel breach shows how a single unapproved OAuth connection t
 pubDate: 2026-04-30
 author: "AuthLayer Team"
 tags: ["oauth", "security", "identity", "saas", "ai"]
+image: "/images/og/oauth-sprawl.jpg"
 featured: false
 ---
 

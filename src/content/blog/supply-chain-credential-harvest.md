@@ -4,6 +4,7 @@ description: "A wave of malicious packages across npm, PyPI, and Packagist is sp
 pubDate: 2026-05-01
 author: "AuthLayer Team"
 tags: ["supply-chain", "security", "credentials", "developer", "identity"]
+image: "/images/og/supply-chain.jpg"
 featured: false
 ---
 

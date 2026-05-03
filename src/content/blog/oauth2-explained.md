@@ -4,6 +4,7 @@ description: "A developer-focused breakdown of OAuth 2.0 — authorization code 
 pubDate: 2026-01-15
 author: "AuthLayer Team"
 tags: ["oauth", "security", "guide"]
+image: "/images/og/oauth2.jpg"
 featured: true
 ---
 
