@@ -8,7 +8,7 @@ interface Props {
 }
 
 const { post } = Astro.props;
-const { title, description, pubDate, updatedDate, author, tags } = post.data;
+const { title, description, pubDate, updatedDate, author, tags, image } = post.data;
 
 const ogImage = new URL(`/og/${post.slug}.png`, Astro.site).href;
 const linkedInShareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(Astro.url.href)}`;
@@ -38,6 +38,12 @@ const formattedUpd = updatedDate?.toLocaleDateString('en-AU', { year: 'numeric',
         </p>
         <p class="post-description">{description}</p>
       </header>
+
+      {image && (
+        <div class="hero-image">
+          <img src={image} alt={title} />
+        </div>
+      )}
 
       <AdUnit slot="2910852937" format="horizontal" />
 
@@ -90,6 +96,21 @@ const formattedUpd = updatedDate?.toLocaleDateString('en-AU', { year: 'numeric',
     color: var(--text-dim);
     border-left: 3px solid var(--accent);
     padding-left: 1rem;
+  }
+
+  .hero-image {
+    margin-bottom: 2.5rem;
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 760px;
+    aspect-ratio: 16 / 9;
+  }
+
+  .hero-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 
   .prose { max-width: 760px; }
