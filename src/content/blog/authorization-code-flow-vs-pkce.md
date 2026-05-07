@@ -4,6 +4,7 @@ description: "Side-by-side walkthrough of OAuth 2.0's authorization code flow an
 pubDate: 2026-05-06
 author: "AuthLayer Team"
 tags: ["oauth", "pkce", "security", "guide"]
+image: "/images/og/pkce.jpg"
 ---
 
 OAuth 2.0 has two variants of the authorization code flow: the classic flow with a `client_secret`, and PKCE (Proof Key for Code Exchange, RFC 7636). They look similar on the surface but exist for different client types and close different attacks. This guide walks through both with sequence diagrams.
