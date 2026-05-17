@@ -64,7 +64,45 @@ const formattedUpd = updatedDate?.toLocaleDateString('en-AU', { year: 'numeric',
       </footer>
     </div>
   </article>
-</BaseLayout>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+  document.querySelectorAll('code.language-mermaid').forEach(code => {
+    const pre = code.parentElement;
+    const div = document.createElement('div');
+    div.className = 'mermaid';
+    div.textContent = code.textContent;
+    pre.replaceWith(div);
+  });
+
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      background: '#0d1117',
+      primaryColor: '#1a2433',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#2d3748',
+      lineColor: '#64748b',
+      secondaryColor: '#1e2d3d',
+      tertiaryColor: '#161b22',
+      edgeLabelBackground: '#0d1117',
+      actorBkg: '#1a2433',
+      actorBorder: '#2d3748',
+      actorTextColor: '#e2e8f0',
+      actorLineColor: '#64748b',
+      signalColor: '#94a3b8',
+      signalTextColor: '#e2e8f0',
+      labelBoxBkgColor: '#1a2433',
+      labelBoxBorderColor: '#2d3748',
+      labelTextColor: '#e2e8f0',
+      loopTextColor: '#e2e8f0',
+      noteBorderColor: '#2d3748',
+      noteBkgColor: '#1e2d3d',
+      noteTextColor: '#e2e8f0',
+    },
+  });
+</script>
 
 <style>
   .post-wrap { padding: 3rem 0 5rem; }
@@ -150,6 +188,21 @@ const formattedUpd = updatedDate?.toLocaleDateString('en-AU', { year: 'numeric',
   }
 
   .prose :global(a) { color: var(--accent); text-underline-offset: 3px; }
+
+  .prose :global(.mermaid) {
+    margin: 2rem 0;
+    padding: 1.5rem 1rem;
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .prose :global(.mermaid svg) {
+    max-width: 100%;
+    height: auto;
+  }
 
   .post-footer {
     margin-top: 4rem;
