@@ -67,8 +67,8 @@ const formattedUpd = updatedDate?.toLocaleDateString('en-AU', { year: 'numeric',
 <script type="module">
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 
-  document.querySelectorAll('code.language-mermaid').forEach(code => {
-    const pre = code.parentElement;
+  document.querySelectorAll('pre[data-language="mermaid"]').forEach(pre => {
+    const code = pre.querySelector('code');
     const div = document.createElement('div');
     div.className = 'mermaid';
     div.textContent = code.textContent;
