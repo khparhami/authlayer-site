@@ -28,51 +28,80 @@ interface Stats {
 let stats: Stats | null = null;
 let analyticsError: string | null = null;
 
-if (CF_API_TOKEN && CF_ACCOUNT_ID && CF_SITE_TAG) {
+if (CF_API_TOKEN && CF_ACCOUNT_ID) {
   try {
+    // Resolve zone ID from domain name — no extra env var needed
+    const zoneRes = await fetch(
+      'https://api.cloudflare.com/client/v4/zones?name=authlayer.dev&status=active',
+      { headers: { 'Authorization': `Bearer ${CF_API_TOKEN}` } }
+    );
+    const zoneData = await zoneRes.json() as { result: Array<{ id: string }> };
+    const zoneId = zoneData.result?.[0]?.id;
+    if (!zoneId) throw new Error('Zone not found — ensure CF_API_TOKEN has Zone:Read permission');
+
     const today = new Date();
     const since = new Date(today);
     since.setDate(since.getDate() - 29);
     const sinceStr = since.toISOString().split('T')[0];
     const untilStr = today.toISOString().split('T')[0];
 
-    const query = `
+    // Zone-level HTTP request analytics — always available, matches CF dashboard numbers
+    const dailyQuery = `
       query {
         viewer {
-          accounts(filter: { accountTag: "${CF_ACCOUNT_ID}" }) {
-            rumPageloadEventsAdaptiveGroups(
-              filter: { siteTag: "${CF_SITE_TAG}", date_geq: "${sinceStr}", date_leq: "${untilStr}" }
-              limit: 1000
+          zones(filter: { zoneTag: "${zoneId}" }) {
+            httpRequests1dGroups(
+              filter: { date_geq: "${sinceStr}", date_leq: "${untilStr}" }
+              limit: 31
               orderBy: [date_ASC]
             ) {
-              count
-              sum { visits }
-              dimensions { date requestPath }
+              sum { pageViews requests }
+              uniq { uniques }
+              dimensions { date }
             }
           }
         }
       }
     `;
 
-    const res = await fetch('https://api.cloudflare.com/client/v4/graphql', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${CF_API_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query }),
-    });
+    const topPagesQuery = `
+      query {
+        viewer {
+          zones(filter: { zoneTag: "${zoneId}" }) {
+            httpRequestsAdaptiveGroups(
+              filter: { date_geq: "${sinceStr}", date_leq: "${untilStr}", requestSource: "eyeball" }
+              limit: 10
+              orderBy: [count_DESC]
+            ) {
+              count
+              dimensions { clientRequestPath }
+            }
+          }
+        }
+      }
+    `;
 
-    if (!res.ok) throw new Error(`CF API ${res.status}`);
+    const [dailyRes, topRes] = await Promise.all([
+      fetch('https://api.cloudflare.com/client/v4/graphql', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${CF_API_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: dailyQuery }),
+      }),
+      fetch('https://api.cloudflare.com/client/v4/graphql', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${CF_API_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: topPagesQuery }),
+      }),
+    ]);
 
-    const json = await res.json() as {
+    const dailyJson = await dailyRes.json() as {
       data?: {
         viewer: {
-          accounts: Array<{
-            rumPageloadEventsAdaptiveGroups: Array<{
-              count: number;
-              sum: { visits: number };
-              dimensions: { date: string; requestPath: string };
+          zones: Array<{
+            httpRequests1dGroups: Array<{
+              sum: { pageViews: number; requests: number };
+              uniq: { uniques: number };
+              dimensions: { date: string };
             }>;
           }>;
         };
@@ -80,39 +109,45 @@ if (CF_API_TOKEN && CF_ACCOUNT_ID && CF_SITE_TAG) {
       errors?: Array<{ message: string }>;
     };
 
-    if (json.errors?.length) throw new Error(json.errors[0].message);
+    const topJson = await topRes.json() as {
+      data?: {
+        viewer: {
+          zones: Array<{
+            httpRequestsAdaptiveGroups: Array<{
+              count: number;
+              dimensions: { clientRequestPath: string };
+            }>;
+          }>;
+        };
+      };
+      errors?: Array<{ message: string }>;
+    };
 
-    const rows = json.data?.viewer?.accounts?.[0]?.rumPageloadEventsAdaptiveGroups ?? [];
+    if (dailyJson.errors?.length) throw new Error(dailyJson.errors[0].message);
+
+    const dailyRows = dailyJson.data?.viewer?.zones?.[0]?.httpRequests1dGroups ?? [];
+    const topRows   = topJson.data?.viewer?.zones?.[0]?.httpRequestsAdaptiveGroups ?? [];
 
     let totalViews = 0;
     let totalVisitors = 0;
-    const dayMap = new Map<string, number>();
-    const pageMap = new Map<string, number>();
 
-    for (const row of rows) {
-      totalViews    += row.count;
-      totalVisitors += row.sum.visits;
-      const d = row.dimensions.date;
-      dayMap.set(d, (dayMap.get(d) ?? 0) + row.count);
-      const p = row.dimensions.requestPath || '/';
-      pageMap.set(p, (pageMap.get(p) ?? 0) + row.count);
-    }
+    const pageviewsByDay: PageviewRow[] = dailyRows.map((row) => {
+      totalViews    += row.sum.pageViews;
+      totalVisitors += row.uniq.uniques;
+      return { date: row.dimensions.date, views: row.sum.pageViews };
+    });
 
-    const pageviewsByDay: PageviewRow[] = Array.from(dayMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, views]) => ({ date, views }));
-
-    const topPages: TopPage[] = Array.from(pageMap.entries())
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([path, views]) => ({ path, views }));
+    const topPages: TopPage[] = topRows.map((row) => ({
+      path: row.dimensions.clientRequestPath || '/',
+      views: row.count,
+    }));
 
     stats = { totalViews, totalVisitors, pageviewsByDay, topPages };
   } catch (err) {
     analyticsError = err instanceof Error ? err.message : 'Failed to load analytics';
   }
 } else {
-  analyticsError = 'Analytics not configured — set CF_API_TOKEN, CF_ACCOUNT_ID, and CF_SITE_TAG.';
+  analyticsError = 'Analytics not configured — set CF_API_TOKEN and CF_ACCOUNT_ID.';
 }
 
 function fmt(n: number): string {
