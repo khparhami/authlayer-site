@@ -8,6 +8,7 @@ const env = Astro.locals.runtime?.env ?? import.meta.env;
 
 const CF_API_TOKEN  = env.CF_API_TOKEN;
 const CF_ACCOUNT_ID = env.CF_ACCOUNT_ID;
+const CF_ZONE_ID    = env.CF_ZONE_ID;
 const CF_SITE_TAG   = env.CF_SITE_TAG;
 
 interface PageviewRow {
@@ -28,16 +29,9 @@ interface Stats {
 let stats: Stats | null = null;
 let analyticsError: string | null = null;
 
-if (CF_API_TOKEN && CF_ACCOUNT_ID) {
+if (CF_API_TOKEN && CF_ZONE_ID) {
   try {
-    // Resolve zone ID from domain name — no extra env var needed
-    const zoneRes = await fetch(
-      'https://api.cloudflare.com/client/v4/zones?name=authlayer.dev&status=active',
-      { headers: { 'Authorization': `Bearer ${CF_API_TOKEN}` } }
-    );
-    const zoneData = await zoneRes.json() as { result: Array<{ id: string }> };
-    const zoneId = zoneData.result?.[0]?.id;
-    if (!zoneId) throw new Error('Zone not found — ensure CF_API_TOKEN has Zone:Read permission');
+    const zoneId = CF_ZONE_ID;
 
     const today = new Date();
     const since = new Date(today);
@@ -147,7 +141,7 @@ if (CF_API_TOKEN && CF_ACCOUNT_ID) {
     analyticsError = err instanceof Error ? err.message : 'Failed to load analytics';
   }
 } else {
-  analyticsError = 'Analytics not configured — set CF_API_TOKEN and CF_ACCOUNT_ID.';
+  analyticsError = 'Analytics not configured — set CF_API_TOKEN and CF_ZONE_ID.';
 }
 
 function fmt(n: number): string {
