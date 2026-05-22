@@ -1,7 +1,6 @@
 {
   "name": "authlayer-site",
   "compatibility_date": "2026-04-29",
-  "main": "./dist/_worker.js",
   "assets": {
     "directory": "./dist"
   }
