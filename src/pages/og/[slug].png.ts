@@ -1,3 +1,5 @@
+export const prerender = true;
+
 import type { APIContext } from 'astro';
 import { getCollection } from 'astro:content';
 import satori from 'satori';
@@ -28,8 +30,8 @@ export async function GET({ props }: APIContext) {
   };
 
   const fontPath = path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
-    '../../../node_modules/@fontsource/inter/files/inter-latin-700-normal.woff'
+    process.cwd(),
+    'node_modules/@fontsource/inter/files/inter-latin-700-normal.woff'
   );
   const fontData = fs.readFileSync(fontPath).buffer;
 
@@ -40,11 +42,7 @@ export async function GET({ props }: APIContext) {
   let bgDataUrl: string | null = null;
   if (articleImage && articleImage.startsWith('/')) {
     try {
-      const imgPath = path.join(
-        path.dirname(fileURLToPath(import.meta.url)),
-        '../../../public',
-        articleImage
-      );
+      const imgPath = path.join(process.cwd(), 'public', articleImage);
       const imgBuf = fs.readFileSync(imgPath);
       bgDataUrl = `data:image/jpeg;base64,${imgBuf.toString('base64')}`;
     } catch (_) {

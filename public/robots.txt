@@ -1,4 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /login
+Disallow: /api/
 
 Sitemap: https://authlayer.dev/sitemap-index.xml

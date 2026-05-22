@@ -44,6 +44,15 @@ const resolvedCanonical = canonicalURL ?? new URL(Astro.url.pathname, Astro.site
 
     <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4614903166174822" crossorigin="anonymous"></script>
+
+    <!-- Cloudflare Web Analytics -->
+    {import.meta.env.PUBLIC_CF_SITE_TAG && (
+      <script
+        defer
+        src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon={`{"token": "${import.meta.env.PUBLIC_CF_SITE_TAG}"}`}
+      ></script>
+    )}
   </head>
   <body>
     <Header />

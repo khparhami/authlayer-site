@@ -1,7 +1,5 @@
 {
   "name": "authlayer-site",
   "compatibility_date": "2026-04-29",
-  "assets": {
-    "directory": "./dist"
-  }
+  "pages_build_output_dir": "./dist"
 }

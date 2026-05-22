@@ -1,0 +1,334 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+
+const email = Astro.locals.userEmail as string;
+const env = Astro.locals.runtime?.env ?? import.meta.env;
+
+const CF_API_TOKEN  = env.CF_API_TOKEN;
+const CF_ACCOUNT_ID = env.CF_ACCOUNT_ID;
+const CF_SITE_TAG   = env.CF_SITE_TAG;
+
+interface PageviewRow {
+  date: string;
+  views: number;
+}
+interface TopPage {
+  path: string;
+  views: number;
+}
+interface Stats {
+  totalViews: number;
+  totalVisitors: number;
+  pageviewsByDay: PageviewRow[];
+  topPages: TopPage[];
+}
+
+let stats: Stats | null = null;
+let analyticsError: string | null = null;
+
+if (CF_API_TOKEN && CF_ACCOUNT_ID && CF_SITE_TAG) {
+  try {
+    const today = new Date();
+    const since = new Date(today);
+    since.setDate(since.getDate() - 29);
+    const sinceStr = since.toISOString().split('T')[0];
+    const untilStr = today.toISOString().split('T')[0];
+
+    const query = `
+      query {
+        viewer {
+          accounts(filter: { accountTag: "${CF_ACCOUNT_ID}" }) {
+            rumPageloadEventsAdaptiveGroups(
+              filter: { siteTag: "${CF_SITE_TAG}", date_geq: "${sinceStr}", date_leq: "${untilStr}" }
+              limit: 1000
+              orderBy: [date_ASC]
+            ) {
+              sum { visits pageViews }
+              dimensions { date requestPath }
+            }
+          }
+        }
+      }
+    `;
+
+    const res = await fetch('https://api.cloudflare.com/client/v4/graphql', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CF_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!res.ok) throw new Error(`CF API ${res.status}`);
+
+    const json = await res.json() as {
+      data?: {
+        viewer: {
+          accounts: Array<{
+            rumPageloadEventsAdaptiveGroups: Array<{
+              sum: { visits: number; pageViews: number };
+              dimensions: { date: string; requestPath: string };
+            }>;
+          }>;
+        };
+      };
+      errors?: Array<{ message: string }>;
+    };
+
+    if (json.errors?.length) throw new Error(json.errors[0].message);
+
+    const rows = json.data?.viewer?.accounts?.[0]?.rumPageloadEventsAdaptiveGroups ?? [];
+
+    let totalViews = 0;
+    let totalVisitors = 0;
+    const dayMap = new Map<string, number>();
+    const pageMap = new Map<string, number>();
+
+    for (const row of rows) {
+      totalViews    += row.sum.pageViews;
+      totalVisitors += row.sum.visits;
+      const d = row.dimensions.date;
+      dayMap.set(d, (dayMap.get(d) ?? 0) + row.sum.pageViews);
+      const p = row.dimensions.requestPath || '/';
+      pageMap.set(p, (pageMap.get(p) ?? 0) + row.sum.pageViews);
+    }
+
+    const pageviewsByDay: PageviewRow[] = Array.from(dayMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, views]) => ({ date, views }));
+
+    const topPages: TopPage[] = Array.from(pageMap.entries())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([path, views]) => ({ path, views }));
+
+    stats = { totalViews, totalVisitors, pageviewsByDay, topPages };
+  } catch (err) {
+    analyticsError = err instanceof Error ? err.message : 'Failed to load analytics';
+  }
+} else {
+  analyticsError = 'Analytics not configured — set CF_API_TOKEN, CF_ACCOUNT_ID, and CF_SITE_TAG.';
+}
+
+function fmt(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toString();
+}
+
+const maxDay = stats ? Math.max(...stats.pageviewsByDay.map((r) => r.views), 1) : 1;
+---
+
+<AdminLayout title="Analytics" email={email}>
+  <div class="dash">
+    <h1 class="dash-title">Analytics <span class="period">Last 30 days</span></h1>
+
+    {analyticsError && (
+      <div class="notice">
+        <strong>Setup required:</strong> {analyticsError}
+      </div>
+    )}
+
+    {stats && (
+      <>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span class="stat-label">Page Views</span>
+            <span class="stat-value">{fmt(stats.totalViews)}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Unique Visitors</span>
+            <span class="stat-value">{fmt(stats.totalVisitors)}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Avg Views / Day</span>
+            <span class="stat-value">
+              {stats.pageviewsByDay.length
+                ? fmt(Math.round(stats.totalViews / stats.pageviewsByDay.length))
+                : '—'}
+            </span>
+          </div>
+        </div>
+
+        {stats.pageviewsByDay.length > 0 && (
+          <div class="section">
+            <h2 class="section-title">Daily Pageviews</h2>
+            <div class="chart">
+              {stats.pageviewsByDay.map((row) => (
+                <div class="bar-wrap" title={`${row.date}: ${row.views} views`}>
+                  <div
+                    class="bar"
+                    style={`height: ${Math.max(4, Math.round((row.views / maxDay) * 100))}%`}
+                  ></div>
+                  <span class="bar-label">{row.date.slice(5)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {stats.topPages.length > 0 && (
+          <div class="section">
+            <h2 class="section-title">Top Pages</h2>
+            <table class="pages-table">
+              <thead>
+                <tr>
+                  <th>Path</th>
+                  <th class="num-col">Views</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.topPages.map((page) => (
+                  <tr>
+                    <td>
+                      <a href={page.path} target="_blank" rel="noopener">{page.path}</a>
+                    </td>
+                    <td class="num-col">{page.views.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+</AdminLayout>
+
+<style>
+  .dash { display: flex; flex-direction: column; gap: 2rem; }
+
+  .dash-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  .period {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--text-muted);
+  }
+
+  .notice {
+    background: rgba(56, 189, 248, 0.07);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    font-size: 0.875rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .section { display: flex; flex-direction: column; gap: 1rem; }
+  .section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* Bar chart */
+  .chart {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem 1rem 0.5rem;
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 160px;
+    overflow-x: auto;
+  }
+  .bar-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    flex: 1;
+    min-width: 16px;
+    height: 100%;
+  }
+  .bar {
+    width: 100%;
+    background: var(--accent);
+    border-radius: 3px 3px 0 0;
+    opacity: 0.75;
+    min-height: 4px;
+    transition: opacity 0.15s;
+  }
+  .bar-wrap:hover .bar { opacity: 1; }
+  .bar-label {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  /* Top pages table */
+  .pages-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 0.875rem;
+  }
+  .pages-table th {
+    background: var(--bg-hover);
+    padding: 0.65rem 1rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .pages-table td {
+    padding: 0.65rem 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .pages-table td a {
+    color: var(--text);
+    text-decoration: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+  }
+  .pages-table td a:hover { color: var(--accent); }
+  .num-col { text-align: right; font-variant-numeric: tabular-nums; }
+</style>
