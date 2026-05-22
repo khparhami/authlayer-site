@@ -66,7 +66,7 @@ if (CF_API_TOKEN && CF_ZONE_ID) {
       viewer {
         zones(filter: { zoneTag: "${CF_ZONE_ID}" }) {
           httpRequestsAdaptiveGroups(
-            filter: { date_geq: "${sinceStr}", date_leq: "${untilStr}", requestSource: "eyeball" }
+            filter: { date_geq: "${sinceStr}", date_leq: "${untilStr}" }
             limit: 10
             orderBy: [count_DESC]
           ) {
@@ -116,6 +116,7 @@ if (CF_API_TOKEN && CF_ZONE_ID) {
     const pageJson  = (jsons[2] ?? null) as PageJson | null;
 
     if (dailyJson.errors?.length) throw new Error(dailyJson.errors[0].message);
+    if (topJson.errors?.length) throw new Error(`Top pages: ${topJson.errors[0].message}`);
 
     const dailyRows = dailyJson.data?.viewer?.zones?.[0]?.httpRequests1dGroups ?? [];
     const topRows   = topJson.data?.viewer?.zones?.[0]?.httpRequestsAdaptiveGroups ?? [];
@@ -240,9 +241,9 @@ function clearPageUrl(): string {
               </thead>
               <tbody>
                 {stats.topPages.map(page => (
-                  <tr class={safePage === page.path ? 'selected-row' : ''}>
+                  <tr class={safePage === page.path ? 'selected-row' : ''} data-href={pageUrl(page.path)}>
                     <td>
-                      <a href={pageUrl(page.path)} class="page-select-link">{page.path}</a>
+                      <span class="page-path">{page.path}</span>
                       <a href={page.path} target="_blank" rel="noopener" class="page-ext-link" title="Open page">↗</a>
                     </td>
                     <td class="num-col">{page.views.toLocaleString()}</td>
@@ -276,6 +277,15 @@ function clearPageUrl(): string {
       </>
     )}
   </div>
+<script>
+  document.querySelectorAll<HTMLTableRowElement>('tr[data-href]').forEach(row => {
+    row.addEventListener('click', e => {
+      if (!(e.target as Element).closest('a')) {
+        location.href = row.dataset.href!;
+      }
+    });
+  });
+</script>
 </AdminLayout>
 
 <style>
@@ -439,13 +449,12 @@ function clearPageUrl(): string {
   }
   .pages-table tr:hover td { background: var(--bg-hover); }
   .selected-row td { background: rgba(167, 139, 250, 0.08); }
-  .page-select-link {
+  .pages-table tbody tr[data-href] { cursor: pointer; }
+  .page-path {
     color: var(--text);
-    text-decoration: none;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
   }
-  .page-select-link:hover { color: var(--accent); }
   .page-ext-link {
     margin-left: 0.5rem;
     color: var(--text-muted);
