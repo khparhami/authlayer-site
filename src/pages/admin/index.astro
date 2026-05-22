@@ -6,116 +6,114 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 const email = Astro.locals.userEmail as string;
 const env = Astro.locals.runtime?.env ?? import.meta.env;
 
-const CF_API_TOKEN  = env.CF_API_TOKEN;
-const CF_ACCOUNT_ID = env.CF_ACCOUNT_ID;
-const CF_ZONE_ID    = env.CF_ZONE_ID;
-const CF_SITE_TAG   = env.CF_SITE_TAG;
+const CF_API_TOKEN = env.CF_API_TOKEN;
+const CF_ZONE_ID   = env.CF_ZONE_ID;
 
-interface PageviewRow {
-  date: string;
-  views: number;
-}
-interface TopPage {
-  path: string;
-  views: number;
-}
+// — URL params ———————————————————————————————————————————
+const sp = Astro.url.searchParams;
+const daysParam = parseInt(sp.get('days') ?? '30', 10);
+const days = [7, 14, 30, 90].includes(daysParam) ? daysParam : 30;
+const rawPage = sp.get('page') ?? '';
+const safePage = /^\/[a-zA-Z0-9\-._~/]*$/.test(rawPage) ? rawPage : '';
+
+// — Types ————————————————————————————————————————————————
+interface PageviewRow { date: string; views: number }
+interface TopPage { path: string; views: number }
 interface Stats {
   totalViews: number;
   totalVisitors: number;
   pageviewsByDay: PageviewRow[];
   topPages: TopPage[];
+  pageDetail: { daily: PageviewRow[] } | null;
 }
 
 let stats: Stats | null = null;
 let analyticsError: string | null = null;
 
+// — Fetch ————————————————————————————————————————————————
 if (CF_API_TOKEN && CF_ZONE_ID) {
   try {
-    const zoneId = CF_ZONE_ID;
-
     const today = new Date();
     const since = new Date(today);
-    since.setDate(since.getDate() - 29);
+    since.setDate(since.getDate() - (days - 1));
     const sinceStr = since.toISOString().split('T')[0];
     const untilStr = today.toISOString().split('T')[0];
 
-    // Zone-level HTTP request analytics — always available, matches CF dashboard numbers
-    const dailyQuery = `
-      query {
-        viewer {
-          zones(filter: { zoneTag: "${zoneId}" }) {
-            httpRequests1dGroups(
-              filter: { date_geq: "${sinceStr}", date_leq: "${untilStr}" }
-              limit: 31
-              orderBy: [date_ASC]
-            ) {
-              sum { pageViews requests }
-              uniq { uniques }
-              dimensions { date }
-            }
+    const gql = (query: string) =>
+      fetch('https://api.cloudflare.com/client/v4/graphql', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${CF_API_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+
+    const dailyQuery = `query {
+      viewer {
+        zones(filter: { zoneTag: "${CF_ZONE_ID}" }) {
+          httpRequests1dGroups(
+            filter: { date_geq: "${sinceStr}", date_leq: "${untilStr}" }
+            limit: ${days + 2}
+            orderBy: [date_ASC]
+          ) {
+            sum { pageViews }
+            uniq { uniques }
+            dimensions { date }
           }
         }
       }
-    `;
+    }`;
 
-    const topPagesQuery = `
-      query {
-        viewer {
-          zones(filter: { zoneTag: "${zoneId}" }) {
-            httpRequestsAdaptiveGroups(
-              filter: { date_geq: "${sinceStr}", date_leq: "${untilStr}", requestSource: "eyeball" }
-              limit: 10
-              orderBy: [count_DESC]
-            ) {
-              count
-              dimensions { clientRequestPath }
-            }
+    const topQuery = `query {
+      viewer {
+        zones(filter: { zoneTag: "${CF_ZONE_ID}" }) {
+          httpRequestsAdaptiveGroups(
+            filter: { date_geq: "${sinceStr}", date_leq: "${untilStr}", requestSource: "eyeball" }
+            limit: 10
+            orderBy: [count_DESC]
+          ) {
+            count
+            dimensions { clientRequestPath }
           }
         }
       }
-    `;
+    }`;
 
-    const [dailyRes, topRes] = await Promise.all([
-      fetch('https://api.cloudflare.com/client/v4/graphql', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${CF_API_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: dailyQuery }),
-      }),
-      fetch('https://api.cloudflare.com/client/v4/graphql', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${CF_API_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: topPagesQuery }),
-      }),
-    ]);
+    const pageQuery = safePage ? `query {
+      viewer {
+        zones(filter: { zoneTag: "${CF_ZONE_ID}" }) {
+          httpRequestsAdaptiveGroups(
+            filter: { date_geq: "${sinceStr}", date_leq: "${untilStr}", requestSource: "eyeball", clientRequestPath: "${safePage}" }
+            limit: ${days + 2}
+            orderBy: [date_ASC]
+          ) {
+            count
+            dimensions { date }
+          }
+        }
+      }
+    }` : null;
 
-    const dailyJson = await dailyRes.json() as {
-      data?: {
-        viewer: {
-          zones: Array<{
-            httpRequests1dGroups: Array<{
-              sum: { pageViews: number; requests: number };
-              uniq: { uniques: number };
-              dimensions: { date: string };
-            }>;
-          }>;
-        };
-      };
+    const fetches: Promise<Response>[] = [gql(dailyQuery), gql(topQuery)];
+    if (pageQuery) fetches.push(gql(pageQuery));
+
+    const responses = await Promise.all(fetches);
+    const jsons = await Promise.all(responses.map(r => r.json()));
+
+    type DailyJson = {
+      data?: { viewer: { zones: Array<{ httpRequests1dGroups: Array<{ sum: { pageViews: number }; uniq: { uniques: number }; dimensions: { date: string } }> }> } };
+      errors?: Array<{ message: string }>;
+    };
+    type TopJson = {
+      data?: { viewer: { zones: Array<{ httpRequestsAdaptiveGroups: Array<{ count: number; dimensions: { clientRequestPath: string } }> }> } };
+      errors?: Array<{ message: string }>;
+    };
+    type PageJson = {
+      data?: { viewer: { zones: Array<{ httpRequestsAdaptiveGroups: Array<{ count: number; dimensions: { date: string } }> }> } };
       errors?: Array<{ message: string }>;
     };
 
-    const topJson = await topRes.json() as {
-      data?: {
-        viewer: {
-          zones: Array<{
-            httpRequestsAdaptiveGroups: Array<{
-              count: number;
-              dimensions: { clientRequestPath: string };
-            }>;
-          }>;
-        };
-      };
-      errors?: Array<{ message: string }>;
-    };
+    const dailyJson = jsons[0] as DailyJson;
+    const topJson   = jsons[1] as TopJson;
+    const pageJson  = (jsons[2] ?? null) as PageJson | null;
 
     if (dailyJson.errors?.length) throw new Error(dailyJson.errors[0].message);
 
@@ -125,18 +123,24 @@ if (CF_API_TOKEN && CF_ZONE_ID) {
     let totalViews = 0;
     let totalVisitors = 0;
 
-    const pageviewsByDay: PageviewRow[] = dailyRows.map((row) => {
-      totalViews    += row.sum.pageViews;
-      totalVisitors += row.uniq.uniques;
-      return { date: row.dimensions.date, views: row.sum.pageViews };
+    const pageviewsByDay: PageviewRow[] = dailyRows.map(r => {
+      totalViews    += r.sum.pageViews;
+      totalVisitors += r.uniq.uniques;
+      return { date: r.dimensions.date, views: r.sum.pageViews };
     });
 
-    const topPages: TopPage[] = topRows.map((row) => ({
-      path: row.dimensions.clientRequestPath || '/',
-      views: row.count,
+    const topPages: TopPage[] = topRows.map(r => ({
+      path: r.dimensions.clientRequestPath || '/',
+      views: r.count,
     }));
 
-    stats = { totalViews, totalVisitors, pageviewsByDay, topPages };
+    let pageDetail: Stats['pageDetail'] = null;
+    if (pageJson) {
+      const rows = pageJson.data?.viewer?.zones?.[0]?.httpRequestsAdaptiveGroups ?? [];
+      pageDetail = { daily: rows.map(r => ({ date: r.dimensions.date, views: r.count })) };
+    }
+
+    stats = { totalViews, totalVisitors, pageviewsByDay, topPages, pageDetail };
   } catch (err) {
     analyticsError = err instanceof Error ? err.message : 'Failed to load analytics';
   }
@@ -150,12 +154,38 @@ function fmt(n: number): string {
   return n.toString();
 }
 
-const maxDay = stats ? Math.max(...stats.pageviewsByDay.map((r) => r.views), 1) : 1;
+const maxDay     = stats ? Math.max(...stats.pageviewsByDay.map(r => r.views), 1) : 1;
+const maxPageDay = stats?.pageDetail ? Math.max(...stats.pageDetail.daily.map(r => r.views), 1) : 1;
+
+function periodUrl(d: number): string {
+  const u = new URL(Astro.url);
+  u.searchParams.set('days', d.toString());
+  return u.pathname + u.search;
+}
+
+function pageUrl(p: string): string {
+  const u = new URL(Astro.url);
+  u.searchParams.set('page', p);
+  return u.pathname + u.search;
+}
+
+function clearPageUrl(): string {
+  const u = new URL(Astro.url);
+  u.searchParams.delete('page');
+  return u.pathname + u.search;
+}
 ---
 
 <AdminLayout title="Analytics" email={email}>
   <div class="dash">
-    <h1 class="dash-title">Analytics <span class="period">Last 30 days</span></h1>
+    <div class="dash-header">
+      <h1 class="dash-title">Analytics</h1>
+      <div class="period-select">
+        {[7, 14, 30, 90].map(d => (
+          <a href={periodUrl(d)} class={`period-btn${days === d ? ' active' : ''}`}>{d}d</a>
+        ))}
+      </div>
+    </div>
 
     {analyticsError && (
       <div class="notice">
@@ -188,12 +218,9 @@ const maxDay = stats ? Math.max(...stats.pageviewsByDay.map((r) => r.views), 1) 
           <div class="section">
             <h2 class="section-title">Daily Pageviews</h2>
             <div class="chart">
-              {stats.pageviewsByDay.map((row) => (
+              {stats.pageviewsByDay.map(row => (
                 <div class="bar-wrap" title={`${row.date}: ${row.views} views`}>
-                  <div
-                    class="bar"
-                    style={`height: ${Math.max(4, Math.round((row.views / maxDay) * 100))}%`}
-                  ></div>
+                  <div class="bar" style={`height: ${Math.max(4, Math.round((row.views / maxDay) * 100))}%`}></div>
                   <span class="bar-label">{row.date.slice(5)}</span>
                 </div>
               ))}
@@ -203,7 +230,7 @@ const maxDay = stats ? Math.max(...stats.pageviewsByDay.map((r) => r.views), 1) 
 
         {stats.topPages.length > 0 && (
           <div class="section">
-            <h2 class="section-title">Top Pages</h2>
+            <h2 class="section-title">Top Pages <span class="section-hint">click a row to drill down</span></h2>
             <table class="pages-table">
               <thead>
                 <tr>
@@ -212,16 +239,38 @@ const maxDay = stats ? Math.max(...stats.pageviewsByDay.map((r) => r.views), 1) 
                 </tr>
               </thead>
               <tbody>
-                {stats.topPages.map((page) => (
-                  <tr>
+                {stats.topPages.map(page => (
+                  <tr class={safePage === page.path ? 'selected-row' : ''}>
                     <td>
-                      <a href={page.path} target="_blank" rel="noopener">{page.path}</a>
+                      <a href={pageUrl(page.path)} class="page-select-link">{page.path}</a>
+                      <a href={page.path} target="_blank" rel="noopener" class="page-ext-link" title="Open page">↗</a>
                     </td>
                     <td class="num-col">{page.views.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {safePage && stats.pageDetail && (
+          <div class="section">
+            <div class="section-header">
+              <h2 class="section-title"><code class="page-code">{safePage}</code></h2>
+              <a href={clearPageUrl()} class="clear-btn">✕ Clear</a>
+            </div>
+            {stats.pageDetail.daily.length > 0 ? (
+              <div class="chart">
+                {stats.pageDetail.daily.map(row => (
+                  <div class="bar-wrap" title={`${row.date}: ${row.views} views`}>
+                    <div class="bar bar--page" style={`height: ${Math.max(4, Math.round((row.views / maxPageDay) * 100))}%`}></div>
+                    <span class="bar-label">{row.date.slice(5)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p class="no-data">No data for this page in the selected period.</p>
+            )}
           </div>
         )}
       </>
@@ -232,18 +281,35 @@ const maxDay = stats ? Math.max(...stats.pageviewsByDay.map((r) => r.views), 1) 
 <style>
   .dash { display: flex; flex-direction: column; gap: 2rem; }
 
+  .dash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
   .dash-title {
     font-size: 1.5rem;
     font-weight: 700;
+  }
+
+  .period-select {
     display: flex;
-    align-items: baseline;
-    gap: 0.75rem;
+    gap: 4px;
   }
-  .period {
+  .period-btn {
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
     font-size: 0.8rem;
-    font-weight: 400;
+    font-weight: 600;
     color: var(--text-muted);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    background: transparent;
+    transition: background 0.15s, color 0.15s;
   }
+  .period-btn:hover { background: var(--bg-hover); color: var(--text); }
+  .period-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
 
   .notice {
     background: rgba(56, 189, 248, 0.07);
@@ -284,12 +350,28 @@ const maxDay = stats ? Math.max(...stats.pageviewsByDay.map((r) => r.views), 1) 
   }
 
   .section { display: flex; flex-direction: column; gap: 1rem; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
   .section-title {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .section-hint {
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    text-transform: none;
+    letter-spacing: 0;
   }
 
   /* Bar chart */
@@ -322,6 +404,7 @@ const maxDay = stats ? Math.max(...stats.pageviewsByDay.map((r) => r.views), 1) 
     min-height: 4px;
     transition: opacity 0.15s;
   }
+  .bar--page { background: #a78bfa; }
   .bar-wrap:hover .bar { opacity: 1; }
   .bar-label {
     font-size: 0.6rem;
@@ -354,12 +437,50 @@ const maxDay = stats ? Math.max(...stats.pageviewsByDay.map((r) => r.views), 1) 
     border-top: 1px solid var(--border);
     color: var(--text-dim);
   }
-  .pages-table td a {
+  .pages-table tr:hover td { background: var(--bg-hover); }
+  .selected-row td { background: rgba(167, 139, 250, 0.08); }
+  .page-select-link {
     color: var(--text);
     text-decoration: none;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
   }
-  .pages-table td a:hover { color: var(--accent); }
+  .page-select-link:hover { color: var(--accent); }
+  .page-ext-link {
+    margin-left: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    text-decoration: none;
+    opacity: 0.6;
+  }
+  .page-ext-link:hover { opacity: 1; color: var(--accent); }
   .num-col { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .page-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #a78bfa;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .clear-btn {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+  .clear-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
+  .no-data {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    padding: 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
 </style>
