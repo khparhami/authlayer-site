@@ -131,10 +131,12 @@ if (CF_API_TOKEN && CF_ZONE_ID) {
       return { date: r.dimensions.date, views: r.sum.pageViews };
     });
 
-    const topPages: TopPage[] = topRows.map(r => ({
-      path: r.dimensions.clientRequestPath || '/',
-      views: r.count,
-    }));
+    const isContentPath = (p: string) =>
+      p === '/' || p === '/about' || p === '/blog' || p.startsWith('/blog/');
+
+    const topPages: TopPage[] = topRows
+      .map(r => ({ path: r.dimensions.clientRequestPath || '/', views: r.count }))
+      .filter(r => isContentPath(r.path));
 
     let pageDetail: Stats['pageDetail'] = null;
     if (pageJson) {
