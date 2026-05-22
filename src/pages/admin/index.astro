@@ -45,7 +45,8 @@ if (CF_API_TOKEN && CF_ACCOUNT_ID && CF_SITE_TAG) {
               limit: 1000
               orderBy: [date_ASC]
             ) {
-              sum { visits pageViews }
+              count
+              sum { visits }
               dimensions { date requestPath }
             }
           }
@@ -69,7 +70,8 @@ if (CF_API_TOKEN && CF_ACCOUNT_ID && CF_SITE_TAG) {
         viewer: {
           accounts: Array<{
             rumPageloadEventsAdaptiveGroups: Array<{
-              sum: { visits: number; pageViews: number };
+              count: number;
+              sum: { visits: number };
               dimensions: { date: string; requestPath: string };
             }>;
           }>;
@@ -88,12 +90,12 @@ if (CF_API_TOKEN && CF_ACCOUNT_ID && CF_SITE_TAG) {
     const pageMap = new Map<string, number>();
 
     for (const row of rows) {
-      totalViews    += row.sum.pageViews;
+      totalViews    += row.count;
       totalVisitors += row.sum.visits;
       const d = row.dimensions.date;
-      dayMap.set(d, (dayMap.get(d) ?? 0) + row.sum.pageViews);
+      dayMap.set(d, (dayMap.get(d) ?? 0) + row.count);
       const p = row.dimensions.requestPath || '/';
-      pageMap.set(p, (pageMap.get(p) ?? 0) + row.sum.pageViews);
+      pageMap.set(p, (pageMap.get(p) ?? 0) + row.count);
     }
 
     const pageviewsByDay: PageviewRow[] = Array.from(dayMap.entries())
