@@ -4,5 +4,11 @@
   "main": "./dist/_worker.js/index.js",
   "assets": {
     "directory": "./dist"
+  },
+  "vars": {
+    "GOOGLE_CLIENT_ID": "570818895924-sclhhtrm4a94dp892ts0b0v88ggg4ovc.apps.googleusercontent.com",
+    "CF_ACCOUNT_ID": "09cb4650f4cdacdcc1d0fd160aa3c114",
+    "CF_SITE_TAG": "cd15295bccd647f99cbec327a82a07dc",
+    "PUBLIC_CF_SITE_TAG": "cd15295bccd647f99cbec327a82a07dc"
   }
 }
