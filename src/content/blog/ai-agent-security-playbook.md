@@ -4,7 +4,7 @@ description: "AI agents consume untrusted data, call real APIs, maintain persist
 pubDate: 2026-05-27
 author: "AuthLayer Team"
 tags: ["security", "identity", "developer-security", "ai-agents"]
-image: "/images/og/ai-toolchain.jpg"
+image: "/images/og/ai-agent-attack-surface.png"
 featured: false
 ---
 
