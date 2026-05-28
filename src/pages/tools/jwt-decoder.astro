@@ -79,6 +79,60 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 
   const TIME_CLAIMS = new Set(['exp', 'iat', 'nbf', 'auth_time', 'updated_at']);
 
+  const JWT_CLAIMS: Record<string, string> = {
+    // RFC 7519 registered claims
+    iss: 'Issuer — who issued this token',
+    sub: 'Subject — who this token is about',
+    aud: 'Audience — who this token is intended for',
+    exp: 'Expiration Time — when this token expires',
+    nbf: 'Not Before — token is invalid before this time',
+    iat: 'Issued At — when this token was issued',
+    jti: 'JWT ID — unique identifier for this token',
+    // JOSE header parameters
+    alg: 'Algorithm — used to sign or encrypt the token (e.g. RS256, HS256)',
+    typ: 'Type — media type of the token, usually "JWT"',
+    cty: 'Content Type — content type of the secured content',
+    kid: 'Key ID — hints which key was used to sign the token',
+    x5t: 'X.509 Certificate SHA-1 Thumbprint',
+    x5u: 'X.509 Certificate Chain URL',
+    // OpenID Connect standard claims
+    name: 'Full name of the end-user',
+    given_name: 'Given name(s) / first name',
+    family_name: 'Surname / last name',
+    middle_name: 'Middle name(s)',
+    nickname: 'Casual or nick name',
+    preferred_username: 'Shorthand name the end-user wants to be referred to',
+    profile: 'URL of the end-user\'s profile page',
+    picture: 'URL of the end-user\'s profile picture',
+    website: 'URL of the end-user\'s web page or blog',
+    email: 'Preferred email address',
+    email_verified: 'True if the email address has been verified',
+    gender: 'End-user\'s gender',
+    birthdate: 'End-user\'s birthday (YYYY-MM-DD)',
+    zoneinfo: 'Time zone (e.g. America/Los_Angeles)',
+    locale: 'Locale tag (e.g. en-US)',
+    phone_number: 'Preferred telephone number',
+    phone_number_verified: 'True if the phone number has been verified',
+    address: 'Preferred postal address',
+    updated_at: 'Time the end-user\'s information was last updated',
+    auth_time: 'Time when the end-user authentication occurred',
+    nonce: 'Value used to associate a client session with an ID Token',
+    acr: 'Authentication Context Class Reference',
+    amr: 'Authentication Methods References — list of auth methods used',
+    azp: 'Authorized Party — the party to which the ID Token was issued',
+    at_hash: 'Access Token hash value',
+    c_hash: 'Authorization Code hash value',
+    sid: 'Session ID — identifies the end-user\'s session',
+    // Common non-standard but widely used
+    scope: 'OAuth 2.0 scopes granted to the token',
+    roles: 'Roles assigned to the subject',
+    groups: 'Groups the subject belongs to',
+    permissions: 'Permissions granted to the subject',
+    tenant_id: 'Tenant or organisation identifier',
+    org_id: 'Organisation identifier',
+    client_id: 'OAuth 2.0 client that requested the token',
+  };
+
   function b64urlDecode(str: string): string {
     str = str.replace(/-/g, '+').replace(/_/g, '/');
     while (str.length % 4) str += '=';
@@ -93,9 +147,17 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     return esc(json).replace(
       /("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
       (match) => {
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            const key = match.slice(1, match.lastIndexOf('"'));
+            const tip = JWT_CLAIMS[key];
+            const attr = tip ? ` data-tooltip="${tip}"` : '';
+            return `<span class="jh-k"${attr}>${match}</span>`;
+          }
+          return `<span class="jh-s">${match}</span>`;
+        }
         let cls = 'n';
-        if (/^"/.test(match)) cls = /:$/.test(match) ? 'k' : 's';
-        else if (/true|false/.test(match)) cls = 'b';
+        if (/true|false/.test(match)) cls = 'b';
         else if (/null/.test(match)) cls = 'nl';
         return `<span class="jh-${cls}">${match}</span>`;
       }
@@ -108,7 +170,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       if (typeof obj[claim] === 'number') {
         const fmt = esc(new Date((obj[claim] as number) * 1000).toUTCString());
         html = html.replace(
-          new RegExp(`(<span class="jh-k">"${claim}":<\\/span>\\s*<span class="jh-n">)(\\d+)(<\\/span>)`),
+          new RegExp(`(<span class="jh-k"[^>]*>"${claim}":<\\/span>\\s*<span class="jh-n">)(\\d+)(<\\/span>)`),
           `$1$2$3 <span class="jh-ts">// ${fmt}</span>`
         );
       }
@@ -180,6 +242,29 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
       });
     });
+  });
+
+  // Floating claim tooltip
+  const claimTooltip = document.createElement('div');
+  claimTooltip.className = 'claim-tooltip';
+  claimTooltip.hidden = true;
+  document.body.appendChild(claimTooltip);
+
+  const decodedPane = document.querySelector('.pane-decoded')!;
+  decodedPane.addEventListener('mouseover', (e) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tooltip]');
+    if (!el) return;
+    claimTooltip.textContent = el.dataset.tooltip!;
+    claimTooltip.hidden = false;
+  });
+  decodedPane.addEventListener('mousemove', (e) => {
+    const me = e as MouseEvent;
+    claimTooltip.style.left = `${me.clientX + 14}px`;
+    claimTooltip.style.top = `${me.clientY - 36}px`;
+  });
+  decodedPane.addEventListener('mouseout', (e) => {
+    if (!(e.target as HTMLElement).closest('[data-tooltip]')) return;
+    claimTooltip.hidden = true;
   });
 </script>
 
@@ -310,4 +395,29 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
   .jh-b  { color: #c084fc; }
   .jh-nl { color: var(--text-dim); }
   .jh-ts { color: var(--text-muted); font-style: italic; }
+
+  /* Known-claim dotted underline hint */
+  .jh-k[data-tooltip] {
+    text-decoration: underline dotted currentColor;
+    text-underline-offset: 3px;
+    cursor: help;
+  }
+</style>
+
+<style is:global>
+  .claim-tooltip {
+    position: fixed;
+    z-index: 200;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    line-height: 1.4;
+    padding: 0.3em 0.65em;
+    border-radius: 5px;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
 </style>
