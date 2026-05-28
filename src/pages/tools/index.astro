@@ -1,0 +1,104 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+
+const tools = [
+  {
+    title: 'JWT Decoder',
+    description: 'Decode and inspect JWT tokens. Syntax-highlighted header and payload, timestamp annotations, and hover descriptions for standard claims.',
+    href: '/tools/jwt-decoder',
+    label: 'Auth & Identity',
+  },
+  {
+    title: 'Base64 Encoder / Decoder',
+    description: 'Encode plain text to Base64 or decode Base64 back to text. Supports both standard and URL-safe (base64url) encoding, live in both directions.',
+    href: '/tools/base64',
+    label: 'Encoding',
+  },
+];
+---
+
+<BaseLayout
+  title="Security Tools | AuthLayer"
+  description="Free browser-based tools for developers working with authentication, identity, and security. No data leaves your browser."
+>
+  <section class="tools-page">
+    <div class="container">
+      <header class="page-header">
+        <span class="tag">Tools</span>
+        <h1>Developer Tools</h1>
+        <p class="subtitle">Browser-based utilities for auth and security work. Nothing is sent to a server.</p>
+      </header>
+
+      <ul class="tools-grid">
+        {tools.map(tool => (
+          <li class="tool-card">
+            <a href={tool.href} class="tool-link">
+              <span class="tool-label">{tool.label}</span>
+              <h2 class="tool-title">{tool.title}</h2>
+              <p class="tool-desc">{tool.description}</p>
+              <span class="tool-cta">Open tool →</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .tools-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2.5rem; }
+  .page-header .tag { margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; margin-bottom: 0.75rem; }
+  .subtitle { color: var(--text-dim); max-width: 600px; font-size: 0.95rem; }
+
+  .tools-grid {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  .tool-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .tool-card:hover { border-color: var(--accent); background: var(--bg-hover); }
+
+  .tool-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.5rem;
+    color: inherit;
+    text-decoration: none;
+    height: 100%;
+  }
+
+  .tool-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .tool-title { font-size: 1.15rem; color: #fff; }
+
+  .tool-desc {
+    font-size: 0.875rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+    flex: 1;
+  }
+
+  .tool-cta {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--accent);
+    margin-top: 0.5rem;
+  }
+</style>

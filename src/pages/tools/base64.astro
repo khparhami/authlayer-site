@@ -1,0 +1,319 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Base64 Encoder / Decoder | AuthLayer"
+  description="Encode plain text to Base64 or decode Base64 back to text. Supports standard and URL-safe (base64url) encoding. All processing happens in your browser."
+>
+  <section class="b64-page">
+    <div class="container">
+      <header class="page-header">
+        <span class="tag">Tools</span>
+        <h1>Base64 Encoder / Decoder</h1>
+        <p class="subtitle">
+          Type or paste in either direction — plain text encodes to Base64, Base64 decodes to text, live.
+          All processing happens in your browser.
+        </p>
+      </header>
+
+      <div class="toolbar">
+        <div class="mode-toggle" role="group" aria-label="Encoding variant">
+          <button class="mode-btn active" data-mode="standard">Standard</button>
+          <button class="mode-btn" data-mode="urlsafe">URL-safe (base64url)</button>
+        </div>
+      </div>
+
+      <div class="encoder-layout">
+        <div class="pane">
+          <div class="pane-header">
+            <span class="pane-title">Plain Text</span>
+            <span id="plain-count" class="char-count">0 chars</span>
+            <button class="copy-btn" id="copy-plain" hidden>Copy</button>
+          </div>
+          <textarea
+            id="plain-input"
+            class="encode-textarea"
+            placeholder="Type or paste text here…"
+            spellcheck="false"
+          ></textarea>
+        </div>
+
+        <div class="arrow-divider" aria-hidden="true">⇄</div>
+
+        <div class="pane">
+          <div class="pane-header">
+            <span class="pane-title">Base64</span>
+            <span id="b64-count" class="char-count">0 chars</span>
+            <button class="copy-btn" id="copy-b64" hidden>Copy</button>
+          </div>
+          <textarea
+            id="b64-input"
+            class="encode-textarea"
+            placeholder="Or paste Base64 here to decode…"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
+          ></textarea>
+          <p id="b64-error" class="error-msg" hidden>
+            Invalid Base64 — check for unsupported characters or incorrect padding.
+          </p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="clear-btn" class="clear-btn">Clear all</button>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  let urlSafe = false;
+
+  const plainInput = document.getElementById('plain-input') as HTMLTextAreaElement;
+  const b64Input   = document.getElementById('b64-input')   as HTMLTextAreaElement;
+  const plainCount = document.getElementById('plain-count')!;
+  const b64Count   = document.getElementById('b64-count')!;
+  const b64Error   = document.getElementById('b64-error')!;
+  const copyPlain  = document.getElementById('copy-plain') as HTMLButtonElement;
+  const copyB64    = document.getElementById('copy-b64')   as HTMLButtonElement;
+
+  function encode(text: string): string {
+    const bytes = new TextEncoder().encode(text);
+    let binary = '';
+    for (const b of bytes) binary += String.fromCharCode(b);
+    let result = btoa(binary);
+    if (urlSafe) result = result.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    return result;
+  }
+
+  function decode(b64: string): string {
+    let s = b64.trim();
+    // Auto-normalize base64url regardless of toggle
+    if (urlSafe || /[-_]/.test(s)) s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const binary = atob(s);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function fmtCount(val: string): string {
+    const n = val.length;
+    return n === 1 ? '1 char' : `${n.toLocaleString()} chars`;
+  }
+
+  plainInput.addEventListener('input', () => {
+    const text = plainInput.value;
+    plainCount.textContent = fmtCount(text);
+    copyPlain.hidden = !text;
+    b64Error.hidden = true;
+    if (!text) {
+      b64Input.value = '';
+      b64Count.textContent = '0 chars';
+      copyB64.hidden = true;
+      return;
+    }
+    const result = encode(text);
+    b64Input.value = result;
+    b64Count.textContent = fmtCount(result);
+    copyB64.hidden = false;
+  });
+
+  b64Input.addEventListener('input', () => {
+    const b64 = b64Input.value;
+    b64Count.textContent = fmtCount(b64);
+    copyB64.hidden = !b64;
+    b64Error.hidden = true;
+    if (!b64.trim()) {
+      plainInput.value = '';
+      plainCount.textContent = '0 chars';
+      copyPlain.hidden = true;
+      return;
+    }
+    try {
+      const result = decode(b64);
+      plainInput.value = result;
+      plainCount.textContent = fmtCount(result);
+      copyPlain.hidden = false;
+    } catch {
+      b64Error.hidden = false;
+      plainInput.value = '';
+      plainCount.textContent = '0 chars';
+      copyPlain.hidden = true;
+    }
+  });
+
+  // Encoding mode toggle
+  document.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      urlSafe = btn.dataset.mode === 'urlsafe';
+      // Re-run from whichever side has content
+      if (plainInput.value) {
+        plainInput.dispatchEvent(new Event('input'));
+      } else if (b64Input.value) {
+        b64Input.dispatchEvent(new Event('input'));
+      }
+    });
+  });
+
+  // Copy buttons
+  function setupCopy(btn: HTMLButtonElement, src: () => string): void {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(src()).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      });
+    });
+  }
+  setupCopy(copyPlain, () => plainInput.value);
+  setupCopy(copyB64, () => b64Input.value);
+
+  // Clear
+  document.getElementById('clear-btn')!.addEventListener('click', () => {
+    plainInput.value = '';
+    b64Input.value = '';
+    plainCount.textContent = '0 chars';
+    b64Count.textContent = '0 chars';
+    b64Error.hidden = true;
+    copyPlain.hidden = true;
+    copyB64.hidden = true;
+  });
+</script>
+
+<style>
+  .b64-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2rem; }
+  .page-header .tag { margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; margin-bottom: 0.75rem; }
+  .subtitle { color: var(--text-dim); max-width: 600px; font-size: 0.95rem; }
+
+  .toolbar { margin-bottom: 1.25rem; }
+
+  .mode-toggle {
+    display: inline-flex;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .mode-btn {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.3em 0.9em;
+    border-radius: 5px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+  .mode-btn.active { background: var(--bg-hover); color: var(--accent); }
+  .mode-btn:not(.active):hover { color: var(--text); }
+
+  .encoder-layout {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0.75rem;
+    align-items: start;
+  }
+
+  @media (max-width: 640px) {
+    .encoder-layout { grid-template-columns: 1fr; }
+    .arrow-divider { display: none; }
+  }
+
+  .arrow-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 2.75rem;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    user-select: none;
+  }
+
+  .pane-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .pane-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .char-count {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  .copy-btn {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2em 0.65em;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .encode-textarea {
+    width: 100%;
+    min-height: 240px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.65;
+    padding: 1rem;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+    word-break: break-all;
+  }
+  .encode-textarea:focus { border-color: var(--accent); }
+  .encode-textarea::placeholder { color: var(--text-muted); }
+
+  .error-msg {
+    margin-top: 0.6rem;
+    font-size: 0.82rem;
+    color: #fb7185;
+  }
+
+  .actions {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .clear-btn {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.4em 1em;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .clear-btn:hover { color: #fb7185; border-color: #fb7185; }
+</style>
