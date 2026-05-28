@@ -1,0 +1,404 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="TOTP Generator | AuthLayer"
+  description="Generate TOTP codes (RFC 6238) from a base32 secret in your browser. Supports 6 and 8-digit codes with 30s or 60s periods. Nothing is sent to a server."
+>
+  <section class="totp-page">
+    <div class="container">
+      <header class="page-header">
+        <span class="tag">Tools</span>
+        <h1>TOTP Generator</h1>
+        <p class="subtitle">
+          Paste a base32 secret to generate a live TOTP code (RFC 6238).
+          Everything runs in your browser — nothing is sent to a server.
+        </p>
+      </header>
+
+      <div class="totp-card">
+        <div class="field-row">
+          <label class="field-label" for="secret-input">Secret Key (Base32)</label>
+          <div class="secret-wrap">
+            <input
+              id="secret-input"
+              type="password"
+              class="secret-input"
+              placeholder="JBSWY3DPEHPK3PXP"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+              autocomplete="off"
+            />
+            <button id="toggle-visibility" class="visibility-btn" type="button" aria-label="Show secret">
+              <svg id="icon-show" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg id="icon-hide" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="options-row">
+          <div class="option-group">
+            <span class="option-label">Digits</span>
+            <div class="seg-control" role="group" aria-label="Digit count">
+              <button class="seg-btn active" data-digits="6">6</button>
+              <button class="seg-btn" data-digits="8">8</button>
+            </div>
+          </div>
+          <div class="option-group">
+            <span class="option-label">Period</span>
+            <div class="seg-control" role="group" aria-label="Period">
+              <button class="seg-btn active" data-period="30">30s</button>
+              <button class="seg-btn" data-period="60">60s</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="code-display" id="code-display">
+          <div class="code-value placeholder-code" id="code-value">— — —</div>
+          <div class="code-actions">
+            <button class="copy-btn" id="copy-btn" disabled>Copy</button>
+            <span class="countdown-text" id="countdown-text"></span>
+          </div>
+        </div>
+
+        <div class="progress-track">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        <p class="error-msg" id="error-msg" hidden>Invalid base32 — use characters A–Z and 2–7 only.</p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  function base32Decode(input: string): Uint8Array {
+    const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const s = input.toUpperCase().replace(/\s/g, '').replace(/=+$/, '');
+    const out = new Uint8Array(Math.floor(s.length * 5 / 8));
+    let bits = 0, val = 0, idx = 0;
+    for (const c of s) {
+      const v = ALPHA.indexOf(c);
+      if (v < 0) throw new Error('Invalid base32');
+      val = (val << 5) | v;
+      bits += 5;
+      if (bits >= 8) { out[idx++] = (val >>> (bits - 8)) & 0xff; bits -= 8; }
+    }
+    return out;
+  }
+
+  async function computeTOTP(secret: string, digits: number, period: number): Promise<string> {
+    const secretBytes = base32Decode(secret);
+    const counter = Math.floor(Date.now() / 1000 / period);
+    const buf = new ArrayBuffer(8);
+    const view = new DataView(buf);
+    view.setUint32(0, Math.floor(counter / 0x100000000), false);
+    view.setUint32(4, counter >>> 0, false);
+    const key = await crypto.subtle.importKey('raw', secretBytes,
+      { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+    const hmac = new Uint8Array(await crypto.subtle.sign('HMAC', key, buf));
+    const offset = hmac[19] & 0xf;
+    const code = (((hmac[offset] & 0x7f) << 24) | (hmac[offset+1] << 16) |
+      (hmac[offset+2] << 8) | hmac[offset+3]) % (10 ** digits);
+    return code.toString().padStart(digits, '0');
+  }
+
+  const secretInput = document.getElementById('secret-input') as HTMLInputElement;
+  const toggleBtn = document.getElementById('toggle-visibility') as HTMLButtonElement;
+  const iconShow = document.getElementById('icon-show') as SVGElement;
+  const iconHide = document.getElementById('icon-hide') as SVGElement;
+  const codeValue = document.getElementById('code-value') as HTMLDivElement;
+  const copyBtn = document.getElementById('copy-btn') as HTMLButtonElement;
+  const countdownText = document.getElementById('countdown-text') as HTMLSpanElement;
+  const progressBar = document.getElementById('progress-bar') as HTMLDivElement;
+  const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+
+  let digits = 6;
+  let period = 30;
+  let lastCounter = -1;
+  let currentCode = '';
+
+  toggleBtn.addEventListener('click', () => {
+    const isPassword = secretInput.type === 'password';
+    secretInput.type = isPassword ? 'text' : 'password';
+    iconShow.hidden = isPassword;
+    iconHide.hidden = !isPassword;
+    toggleBtn.setAttribute('aria-label', isPassword ? 'Hide secret' : 'Show secret');
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-digits]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll<HTMLButtonElement>('[data-digits]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      digits = parseInt(btn.dataset.digits!, 10);
+      lastCounter = -1;
+      tick();
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-period]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll<HTMLButtonElement>('[data-period]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      period = parseInt(btn.dataset.period!, 10);
+      lastCounter = -1;
+      tick();
+    });
+  });
+
+  secretInput.addEventListener('input', () => {
+    lastCounter = -1;
+    tick();
+  });
+
+  copyBtn.addEventListener('click', () => {
+    if (!currentCode) return;
+    navigator.clipboard.writeText(currentCode).then(() => {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+    });
+  });
+
+  function formatCode(code: string, d: number): string {
+    if (d === 8) {
+      return code.slice(0, 4) + ' ' + code.slice(4);
+    }
+    return code.slice(0, 3) + ' ' + code.slice(3);
+  }
+
+  function setPlaceholder(): void {
+    codeValue.textContent = '— — —';
+    codeValue.classList.add('placeholder-code');
+    copyBtn.disabled = true;
+    countdownText.textContent = '';
+    progressBar.style.width = '0%';
+    currentCode = '';
+  }
+
+  async function tick(): Promise<void> {
+    const raw = secretInput.value.trim();
+    if (!raw) {
+      errorMsg.hidden = true;
+      setPlaceholder();
+      return;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const counter = Math.floor(now / period);
+    const remaining = period - (now % period);
+    const pct = (remaining / period) * 100;
+
+    countdownText.textContent = `${remaining}s`;
+    progressBar.style.width = `${pct}%`;
+
+    if (counter !== lastCounter) {
+      lastCounter = counter;
+      try {
+        const code = await computeTOTP(raw, digits, period);
+        errorMsg.hidden = true;
+        currentCode = code;
+        codeValue.textContent = formatCode(code, digits);
+        codeValue.classList.remove('placeholder-code');
+        copyBtn.disabled = false;
+      } catch {
+        errorMsg.hidden = false;
+        setPlaceholder();
+        lastCounter = -1;
+      }
+    }
+  }
+
+  setInterval(tick, 250);
+  tick();
+</script>
+
+<style>
+  .totp-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2.5rem; }
+  .page-header .tag { margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; margin-bottom: 0.75rem; }
+  .subtitle { color: var(--text-dim); max-width: 540px; font-size: 0.95rem; }
+
+  .totp-card {
+    max-width: 480px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .secret-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .secret-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    padding: 0.625rem 2.75rem 0.625rem 0.875rem;
+    outline: none;
+    transition: border-color 0.2s;
+    letter-spacing: 0.05em;
+  }
+  .secret-input:focus { border-color: var(--accent); }
+  .secret-input::placeholder { color: var(--text-muted); letter-spacing: 0; }
+
+  .visibility-btn {
+    position: absolute;
+    right: 0.625rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: color 0.15s;
+    line-height: 0;
+  }
+  .visibility-btn:hover { color: var(--text-dim); }
+
+  .options-row {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .option-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .seg-control {
+    display: flex;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .seg-btn {
+    padding: 0.35em 0.85em;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .seg-btn + .seg-btn { border-left: 1px solid var(--border); }
+  .seg-btn.active {
+    background: var(--bg-hover);
+    color: var(--accent);
+  }
+  .seg-btn:not(.active):hover { color: var(--text-dim); }
+
+  .code-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .code-value {
+    font-family: var(--font-mono);
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .code-value.placeholder-code { color: var(--text-muted); font-size: 2rem; }
+
+  .code-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+
+  .copy-btn {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.3em 0.75em;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .copy-btn:not(:disabled):hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn:disabled { opacity: 0.4; cursor: default; }
+
+  .countdown-text {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    min-width: 2.5rem;
+    text-align: right;
+  }
+
+  .progress-track {
+    height: 4px;
+    background: var(--bg);
+    border-radius: 2px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.25s linear;
+  }
+
+  .error-msg {
+    font-size: 0.85rem;
+    color: #fb7185;
+    margin: 0;
+  }
+</style>

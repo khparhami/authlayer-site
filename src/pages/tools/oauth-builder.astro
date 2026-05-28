@@ -1,0 +1,481 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="OAuth 2.0 Flow Builder | AuthLayer"
+  description="Construct OAuth 2.0 authorization URLs and token requests for Authorization Code, PKCE, and Client Credentials flows. All generation happens in your browser."
+>
+  <section class="oauth-page">
+    <div class="container">
+      <header class="page-header">
+        <span class="tag">Tools</span>
+        <h1>OAuth 2.0 Flow Builder</h1>
+        <p class="subtitle">
+          Build authorization URLs and token request parameters for the three most common OAuth 2.0 grant types.
+        </p>
+      </header>
+
+      <div class="grant-toggle" role="group" aria-label="Grant type">
+        <button class="grant-btn active" data-grant="code">Authorization Code</button>
+        <button class="grant-btn" data-grant="pkce">Auth Code + PKCE</button>
+        <button class="grant-btn" data-grant="client_creds">Client Credentials</button>
+      </div>
+
+      <div class="builder-layout">
+        <!-- Left: form -->
+        <div class="form-pane">
+
+          <!-- Authorization Code / PKCE fields -->
+          <div id="fields-authcode" class="field-group">
+            <div class="field-row">
+              <label class="field-label" for="auth-endpoint">Authorization Endpoint</label>
+              <input id="auth-endpoint" class="text-input" type="text" placeholder="https://auth.example.com/authorize" autocomplete="off" />
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="ac-client-id">Client ID</label>
+              <input id="ac-client-id" class="text-input" type="text" placeholder="my-client-id" autocomplete="off" />
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="ac-redirect-uri">Redirect URI</label>
+              <input id="ac-redirect-uri" class="text-input" type="text" placeholder="https://myapp.com/callback" autocomplete="off" />
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="ac-scope">Scope</label>
+              <input id="ac-scope" class="text-input" type="text" placeholder="openid profile email" autocomplete="off" />
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="ac-state">State</label>
+              <div class="input-row">
+                <input id="ac-state" class="text-input" type="text" autocomplete="off" readonly />
+                <button class="regen-btn" id="regen-state">Regenerate</button>
+              </div>
+            </div>
+            <div class="field-row fixed-field">
+              <span class="field-label">Response Type</span>
+              <span class="field-value">code</span>
+            </div>
+          </div>
+
+          <!-- PKCE-only extra fields -->
+          <div id="fields-pkce" class="field-group" hidden>
+            <div class="field-row">
+              <label class="field-label" for="code-verifier">Code Verifier</label>
+              <div class="input-row">
+                <input id="code-verifier" class="text-input mono" type="text" autocomplete="off" readonly />
+                <button class="regen-btn" id="regen-verifier">Regenerate</button>
+              </div>
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="code-challenge">Code Challenge</label>
+              <input id="code-challenge" class="text-input mono" type="text" readonly />
+            </div>
+            <div class="field-row fixed-field">
+              <span class="field-label">Challenge Method</span>
+              <span class="field-value">S256</span>
+            </div>
+          </div>
+
+          <!-- Client Credentials fields -->
+          <div id="fields-cc" class="field-group" hidden>
+            <div class="field-row">
+              <label class="field-label" for="token-endpoint">Token Endpoint</label>
+              <input id="token-endpoint" class="text-input" type="text" placeholder="https://auth.example.com/token" autocomplete="off" />
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="cc-client-id">Client ID</label>
+              <input id="cc-client-id" class="text-input" type="text" placeholder="my-client-id" autocomplete="off" />
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="cc-client-secret">Client Secret</label>
+              <div class="input-row">
+                <input id="cc-client-secret" class="text-input" type="password" placeholder="••••••••" autocomplete="off" />
+                <button class="regen-btn" id="toggle-secret">Show</button>
+              </div>
+            </div>
+            <div class="field-row">
+              <label class="field-label" for="cc-scope">Scope</label>
+              <input id="cc-scope" class="text-input" type="text" placeholder="read:data write:data" autocomplete="off" />
+            </div>
+            <div class="field-row fixed-field">
+              <span class="field-label">Grant Type</span>
+              <span class="field-value">client_credentials</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right: output -->
+        <div class="output-pane">
+
+          <!-- Auth Code / PKCE output -->
+          <div id="output-authcode" class="output-group">
+            <div class="output-block">
+              <div class="output-header">
+                <span class="output-label">Authorization URL</span>
+                <button class="copy-btn" id="copy-auth-url">Copy</button>
+              </div>
+              <pre id="auth-url-display" class="url-output"></pre>
+            </div>
+            <div class="output-block">
+              <div class="output-header">
+                <span class="output-label">Token Request Parameters</span>
+              </div>
+              <pre id="token-params-display" class="url-output"></pre>
+            </div>
+          </div>
+
+          <!-- Client Credentials output -->
+          <div id="output-cc" class="output-group" hidden>
+            <div class="output-block">
+              <div class="output-header">
+                <span class="output-label">Token Request (fetch)</span>
+                <button class="copy-btn" id="copy-cc-snippet">Copy</button>
+              </div>
+              <pre id="cc-snippet-display" class="url-output"></pre>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  type Grant = 'code' | 'pkce' | 'client_creds';
+  let grant: Grant = 'code';
+
+  function randomHex(bytes: number): string {
+    const arr = crypto.getRandomValues(new Uint8Array(bytes));
+    return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function randomBase64url(bytes: number): string {
+    const arr = crypto.getRandomValues(new Uint8Array(bytes));
+    let binary = '';
+    for (const b of arr) binary += String.fromCharCode(b);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
+  async function sha256Base64url(str: string): Promise<string> {
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    const bytes = new Uint8Array(hash);
+    let binary = '';
+    for (const b of bytes) binary += String.fromCharCode(b);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
+  function val(id: string): string {
+    return (document.getElementById(id) as HTMLInputElement).value.trim();
+  }
+
+  function ph(v: string, placeholder: string): string {
+    return v || placeholder;
+  }
+
+  function esc(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Initialize generated fields
+  const stateInput = document.getElementById('ac-state') as HTMLInputElement;
+  const verifierInput = document.getElementById('code-verifier') as HTMLInputElement;
+  const challengeInput = document.getElementById('code-challenge') as HTMLInputElement;
+
+  function genState(): void {
+    stateInput.value = randomHex(16);
+    update();
+  }
+
+  async function genVerifier(): Promise<void> {
+    verifierInput.value = randomBase64url(32);
+    challengeInput.value = await sha256Base64url(verifierInput.value);
+    update();
+  }
+
+  genState();
+  genVerifier();
+
+  document.getElementById('regen-state')!.addEventListener('click', genState);
+  document.getElementById('regen-verifier')!.addEventListener('click', () => genVerifier());
+
+  // Secret show/hide
+  const secretInput = document.getElementById('cc-client-secret') as HTMLInputElement;
+  const toggleBtn = document.getElementById('toggle-secret')!;
+  toggleBtn.addEventListener('click', () => {
+    const hidden = secretInput.type === 'password';
+    secretInput.type = hidden ? 'text' : 'password';
+    toggleBtn.textContent = hidden ? 'Hide' : 'Show';
+  });
+
+  // Grant type toggle
+  document.querySelectorAll<HTMLButtonElement>('.grant-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.grant-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      grant = btn.dataset.grant as Grant;
+      showGrant();
+      update();
+    });
+  });
+
+  function showGrant(): void {
+    const isPkce = grant === 'pkce';
+    const isCC = grant === 'client_creds';
+
+    (document.getElementById('fields-authcode') as HTMLElement).hidden = isCC;
+    (document.getElementById('fields-pkce') as HTMLElement).hidden = !isPkce;
+    (document.getElementById('fields-cc') as HTMLElement).hidden = !isCC;
+    (document.getElementById('output-authcode') as HTMLElement).hidden = isCC;
+    (document.getElementById('output-cc') as HTMLElement).hidden = !isCC;
+  }
+
+  function buildAuthUrl(): string {
+    const base = val('auth-endpoint') || 'https://auth.example.com/authorize';
+    const params: Record<string, string> = {
+      response_type: 'code',
+      client_id: ph(val('ac-client-id'), '{client_id}'),
+      redirect_uri: ph(val('ac-redirect-uri'), '{redirect_uri}'),
+      scope: ph(val('ac-scope'), '{scope}'),
+      state: val('ac-state') || '{state}',
+    };
+    if (grant === 'pkce') {
+      params.code_challenge = verifierInput.value ? challengeInput.value : '{code_challenge}';
+      params.code_challenge_method = 'S256';
+    }
+    const qs = Object.entries(params)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+    return `${base}?${qs}`;
+  }
+
+  function buildTokenParams(): string {
+    const lines = [
+      `grant_type     = authorization_code`,
+      `code           = {authorization_code}`,
+      `redirect_uri   = ${ph(val('ac-redirect-uri'), '{redirect_uri}')}`,
+      `client_id      = ${ph(val('ac-client-id'), '{client_id}')}`,
+    ];
+    if (grant === 'pkce') {
+      lines.push(`code_verifier  = ${verifierInput.value || '{code_verifier}'}`);
+    } else {
+      lines.push(`client_secret  = {client_secret}`);
+    }
+    return lines.join('\n');
+  }
+
+  function buildCCSnippet(): string {
+    const tokenUrl = val('token-endpoint') || 'https://auth.example.com/token';
+    const clientId = ph(val('cc-client-id'), '{client_id}');
+    const clientSecret = ph(val('cc-client-secret'), '{client_secret}');
+    const scope = val('cc-scope');
+    const bodyLines = [
+      `  grant_type: 'client_credentials',`,
+      `  client_id: '${clientId}',`,
+      `  client_secret: '${clientSecret}',`,
+    ];
+    if (scope) bodyLines.push(`  scope: '${scope}',`);
+    return [
+      `fetch('${tokenUrl}', {`,
+      `  method: 'POST',`,
+      `  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },`,
+      `  body: new URLSearchParams({`,
+      ...bodyLines,
+      `  }),`,
+      `})`,
+      `.then(r => r.json())`,
+      `.then(data => console.log(data));`,
+    ].join('\n');
+  }
+
+  function update(): void {
+    if (grant === 'client_creds') {
+      const snippet = buildCCSnippet();
+      document.getElementById('cc-snippet-display')!.textContent = snippet;
+      (document.getElementById('copy-cc-snippet') as HTMLButtonElement).hidden = false;
+    } else {
+      const url = buildAuthUrl();
+      document.getElementById('auth-url-display')!.textContent = url;
+      document.getElementById('token-params-display')!.textContent = buildTokenParams();
+      (document.getElementById('copy-auth-url') as HTMLButtonElement).hidden = false;
+    }
+  }
+
+  // Copy buttons
+  function setupCopy(btnId: string, srcId: string): void {
+    document.getElementById(btnId)!.addEventListener('click', () => {
+      const text = document.getElementById(srcId)!.textContent ?? '';
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById(btnId) as HTMLButtonElement;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      });
+    });
+  }
+  setupCopy('copy-auth-url', 'auth-url-display');
+  setupCopy('copy-cc-snippet', 'cc-snippet-display');
+
+  // Live update on all inputs
+  document.querySelectorAll<HTMLInputElement>('.text-input:not([readonly])').forEach(el => {
+    el.addEventListener('input', update);
+  });
+
+  update();
+</script>
+
+<style>
+  .oauth-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2rem; }
+  .page-header .tag { margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; margin-bottom: 0.75rem; }
+  .subtitle { color: var(--text-dim); max-width: 600px; font-size: 0.95rem; }
+
+  .grant-toggle {
+    display: inline-flex;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .grant-btn {
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.35em 1em;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+  .grant-btn.active { background: var(--bg-hover); color: var(--accent); }
+  .grant-btn:not(.active):hover { color: var(--text); }
+
+  .builder-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 768px) {
+    .builder-layout { grid-template-columns: 1fr; }
+  }
+
+  /* Form pane */
+  .field-group { display: flex; flex-direction: column; gap: 1rem; }
+
+  .field-row { display: flex; flex-direction: column; gap: 0.35rem; }
+
+  .field-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .text-input {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .text-input:focus { border-color: var(--accent); }
+  .text-input::placeholder { color: var(--text-muted); }
+  .text-input[readonly] { color: var(--text-dim); cursor: default; }
+  .mono { font-family: var(--font-mono); font-size: 0.75rem; }
+
+  .input-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .input-row .text-input { flex: 1; min-width: 0; }
+
+  .regen-btn {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .regen-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .fixed-field { flex-direction: row; align-items: center; gap: 0.75rem; }
+  .field-value {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--accent);
+  }
+
+  /* Output pane */
+  .output-group { display: flex; flex-direction: column; gap: 1rem; }
+
+  .output-block {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .output-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+
+  .copy-btn {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2em 0.65em;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .url-output {
+    margin: 0;
+    padding: 1rem;
+    font-size: 0.75rem;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text-dim);
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+</style>

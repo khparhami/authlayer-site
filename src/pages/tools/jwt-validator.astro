@@ -1,0 +1,667 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="JWT Claim Validator | AuthLayer"
+  description="Validate JWT claims against custom rules in your browser. Define rules for expiry, issuer, audience, and more — nothing is sent to a server."
+>
+  <section class="validator-page">
+    <div class="container">
+      <header class="page-header">
+        <span class="tag">Tools</span>
+        <h1>JWT Claim Validator</h1>
+        <p class="subtitle">
+          Paste a JWT and define validation rules to check claims against expected values.
+          All processing happens in your browser — nothing is sent to a server.
+        </p>
+      </header>
+
+      <div class="validator-layout">
+        <div class="panel panel-left">
+          <div class="panel-section">
+            <div class="section-label">Token</div>
+            <textarea
+              id="jwt-input"
+              class="jwt-textarea"
+              placeholder="Paste a JWT here…"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+            ></textarea>
+            <p id="decode-error" class="decode-error" hidden>
+              Invalid JWT — expected three dot-separated base64url segments.
+            </p>
+          </div>
+
+          <div class="panel-section">
+            <div class="rules-header">
+              <div class="section-label">Rules</div>
+              <button id="add-rule-btn" class="add-rule-btn">+ Add rule</button>
+            </div>
+            <div id="rules-list" class="rules-list"></div>
+            <button id="validate-btn" class="validate-btn">Validate</button>
+          </div>
+        </div>
+
+        <div class="panel panel-right">
+          <div class="section-label">Results</div>
+          <div id="results-container" class="results-container">
+            <p class="empty-state">Add rules and click Validate</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  type RuleType = 'exists' | 'equals' | 'contains' | 'not_expired' | 'not_before' | 'regex';
+
+  interface Rule {
+    id: number;
+    claim: string;
+    type: RuleType;
+    value: string;
+  }
+
+  interface ResultItem {
+    pass: boolean;
+    claim: string;
+    rule: string;
+    detail: string;
+  }
+
+  const VALUE_LESS: RuleType[] = ['exists', 'not_expired', 'not_before'];
+
+  let ruleCounter = 0;
+  const rules: Rule[] = [];
+
+  const rulesList = document.getElementById('rules-list')!;
+  const addRuleBtn = document.getElementById('add-rule-btn')!;
+  const validateBtn = document.getElementById('validate-btn')!;
+  const jwtInput = document.getElementById('jwt-input') as HTMLTextAreaElement;
+  const decodeError = document.getElementById('decode-error')!;
+  const resultsContainer = document.getElementById('results-container')!;
+
+  function b64urlDecode(str: string): string {
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (str.length % 4) str += '=';
+    return atob(str);
+  }
+
+  function decodeJwt(token: string): Record<string, unknown> | null {
+    try {
+      const parts = token.trim().split('.');
+      if (parts.length !== 3) return null;
+      return JSON.parse(b64urlDecode(parts[1]));
+    } catch {
+      return null;
+    }
+  }
+
+  function ruleTypeLabel(type: RuleType): string {
+    const labels: Record<RuleType, string> = {
+      exists: 'exists',
+      equals: 'equals',
+      contains: 'contains',
+      not_expired: 'not expired',
+      not_before: 'not before',
+      regex: 'matches regex',
+    };
+    return labels[type];
+  }
+
+  function evaluateRule(rule: Rule, payload: Record<string, unknown>): ResultItem {
+    const { claim, type, value } = rule;
+    const present = claim in payload;
+    const raw = payload[claim];
+    const label = ruleTypeLabel(type);
+
+    if (type === 'exists') {
+      return {
+        pass: present,
+        claim,
+        rule: label,
+        detail: present
+          ? `found: ${JSON.stringify(raw)}`
+          : 'claim not present in payload',
+      };
+    }
+
+    if (!present) {
+      return {
+        pass: false,
+        claim,
+        rule: label,
+        detail: 'claim not present in payload',
+      };
+    }
+
+    if (type === 'not_expired') {
+      const ts = typeof raw === 'number' ? raw : Number(raw);
+      const now = Date.now() / 1000;
+      const pass = ts > now;
+      const dateStr = new Date(ts * 1000).toUTCString();
+      return {
+        pass,
+        claim,
+        rule: label,
+        detail: pass
+          ? `expires ${dateStr}`
+          : `expired at ${dateStr}`,
+      };
+    }
+
+    if (type === 'not_before') {
+      const ts = typeof raw === 'number' ? raw : Number(raw);
+      const now = Date.now() / 1000;
+      const pass = ts <= now;
+      const dateStr = new Date(ts * 1000).toUTCString();
+      return {
+        pass,
+        claim,
+        rule: label,
+        detail: pass
+          ? `valid since ${dateStr}`
+          : `not valid until ${dateStr}`,
+      };
+    }
+
+    if (type === 'equals') {
+      const pass = String(raw) === value;
+      return {
+        pass,
+        claim,
+        rule: `${label} "${value}"`,
+        detail: pass
+          ? `matched: ${JSON.stringify(raw)}`
+          : `expected "${value}", got: ${JSON.stringify(raw)}`,
+      };
+    }
+
+    if (type === 'contains') {
+      let pass = false;
+      if (Array.isArray(raw)) {
+        pass = raw.includes(value);
+      } else {
+        pass = String(raw).includes(value);
+      }
+      return {
+        pass,
+        claim,
+        rule: `${label} "${value}"`,
+        detail: pass
+          ? `found "${value}" in: ${JSON.stringify(raw)}`
+          : `"${value}" not found in: ${JSON.stringify(raw)}`,
+      };
+    }
+
+    if (type === 'regex') {
+      let pass = false;
+      let errMsg = '';
+      try {
+        pass = new RegExp(value).test(String(raw));
+      } catch {
+        errMsg = 'invalid regex pattern';
+      }
+      return {
+        pass: errMsg ? false : pass,
+        claim,
+        rule: `${label} /${value}/`,
+        detail: errMsg
+          ? errMsg
+          : pass
+          ? `matched: ${JSON.stringify(raw)}`
+          : `no match in: ${JSON.stringify(raw)}`,
+      };
+    }
+
+    return { pass: false, claim, rule: label, detail: 'unknown rule type' };
+  }
+
+  function updateValueInput(row: HTMLElement, type: RuleType) {
+    const valueInput = row.querySelector<HTMLInputElement>('.rule-value')!;
+    const disabled = VALUE_LESS.includes(type);
+    valueInput.disabled = disabled;
+    valueInput.style.opacity = disabled ? '0.3' : '1';
+    if (disabled) valueInput.value = '';
+  }
+
+  function createRuleRow(preset?: { claim: string; type: RuleType; value: string }): void {
+    const id = ++ruleCounter;
+    const rule: Rule = {
+      id,
+      claim: preset?.claim ?? '',
+      type: preset?.type ?? 'exists',
+      value: preset?.value ?? '',
+    };
+    rules.push(rule);
+
+    const row = document.createElement('div');
+    row.className = 'rule-row';
+    row.dataset.id = String(id);
+    row.innerHTML = `
+      <input
+        type="text"
+        class="rule-claim"
+        placeholder="claim"
+        value="${rule.claim}"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <select class="rule-type">
+        <option value="exists"${rule.type === 'exists' ? ' selected' : ''}>exists</option>
+        <option value="equals"${rule.type === 'equals' ? ' selected' : ''}>equals</option>
+        <option value="contains"${rule.type === 'contains' ? ' selected' : ''}>contains</option>
+        <option value="not_expired"${rule.type === 'not_expired' ? ' selected' : ''}>not expired</option>
+        <option value="not_before"${rule.type === 'not_before' ? ' selected' : ''}>not before</option>
+        <option value="regex"${rule.type === 'regex' ? ' selected' : ''}>regex</option>
+      </select>
+      <input
+        type="text"
+        class="rule-value"
+        placeholder="value"
+        value="${rule.value}"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button class="remove-rule-btn" aria-label="Remove rule">×</button>
+    `;
+
+    const claimInput = row.querySelector<HTMLInputElement>('.rule-claim')!;
+    const typeSelect = row.querySelector<HTMLSelectElement>('.rule-type')!;
+    const valueInput = row.querySelector<HTMLInputElement>('.rule-value')!;
+    const removeBtn = row.querySelector<HTMLButtonElement>('.remove-rule-btn')!;
+
+    updateValueInput(row, rule.type);
+
+    claimInput.addEventListener('input', () => {
+      const r = rules.find(r => r.id === id);
+      if (r) r.claim = claimInput.value.trim();
+    });
+
+    typeSelect.addEventListener('change', () => {
+      const r = rules.find(r => r.id === id);
+      if (r) {
+        r.type = typeSelect.value as RuleType;
+        updateValueInput(row, r.type);
+      }
+    });
+
+    valueInput.addEventListener('input', () => {
+      const r = rules.find(r => r.id === id);
+      if (r) r.value = valueInput.value;
+    });
+
+    removeBtn.addEventListener('click', () => {
+      const idx = rules.findIndex(r => r.id === id);
+      if (idx !== -1) rules.splice(idx, 1);
+      row.remove();
+    });
+
+    rulesList.appendChild(row);
+  }
+
+  function renderResults(items: ResultItem[]): void {
+    resultsContainer.innerHTML = '';
+    if (items.length === 0) {
+      resultsContainer.innerHTML = '<p class="empty-state">No rules to evaluate</p>';
+      return;
+    }
+    const list = document.createElement('ul');
+    list.className = 'result-list';
+    for (const item of items) {
+      const li = document.createElement('li');
+      li.className = `result-item ${item.pass ? 'result-pass' : 'result-fail'}`;
+      li.innerHTML = `
+        <span class="result-icon">${item.pass ? '✓' : '✗'}</span>
+        <div class="result-body">
+          <span class="result-claim">${item.claim}</span>
+          <span class="result-rule">${item.rule}</span>
+          <span class="result-detail">${item.detail}</span>
+        </div>
+      `;
+      list.appendChild(li);
+    }
+    resultsContainer.appendChild(list);
+  }
+
+  addRuleBtn.addEventListener('click', () => {
+    createRuleRow();
+  });
+
+  validateBtn.addEventListener('click', () => {
+    const token = jwtInput.value.trim();
+    decodeError.hidden = true;
+
+    if (!token) {
+      resultsContainer.innerHTML = '<p class="empty-state">Paste a JWT first</p>';
+      return;
+    }
+
+    const payload = decodeJwt(token);
+    if (!payload) {
+      decodeError.hidden = false;
+      resultsContainer.innerHTML = '<p class="empty-state">Fix the JWT error above first</p>';
+      return;
+    }
+
+    if (rules.length === 0) {
+      resultsContainer.innerHTML = '<p class="empty-state">Add at least one rule</p>';
+      return;
+    }
+
+    const results = rules.map(rule => evaluateRule(rule, payload));
+    renderResults(results);
+  });
+
+  createRuleRow({ claim: 'exp', type: 'not_expired', value: '' });
+  createRuleRow({ claim: 'iss', type: 'exists', value: '' });
+</script>
+
+<style>
+  .validator-page {
+    padding: 3rem 0 5rem;
+  }
+
+  .page-header {
+    margin-bottom: 2.5rem;
+  }
+
+  .page-header .tag {
+    margin-bottom: 0.75rem;
+  }
+
+  .page-header h1 {
+    font-size: 2rem;
+    color: #fff;
+    margin-top: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    max-width: 620px;
+    font-size: 0.95rem;
+  }
+
+  .validator-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 768px) {
+    .validator-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .panel-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .jwt-textarea {
+    width: 100%;
+    min-height: 160px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1.65;
+    padding: 1rem;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+    word-break: break-all;
+  }
+
+  .jwt-textarea:focus {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
+  .jwt-textarea::placeholder {
+    color: var(--text-muted);
+  }
+
+  .decode-error {
+    font-size: 0.85rem;
+    color: #fb7185;
+  }
+
+  .rules-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .add-rule-btn {
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.3em 0.8em;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .add-rule-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+  }
+
+  .rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .rule-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  @media (max-width: 500px) {
+    .rule-row {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+    }
+
+    .rule-row .remove-rule-btn {
+      grid-column: 2;
+      grid-row: 2;
+      justify-self: end;
+    }
+
+    .rule-row .rule-value {
+      grid-column: 1;
+      grid-row: 2;
+    }
+  }
+
+  .rule-claim,
+  .rule-value {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    padding: 0.45em 0.65em;
+    outline: none;
+    transition: border-color 0.15s;
+    min-width: 0;
+  }
+
+  .rule-claim:focus,
+  .rule-value:focus {
+    border-color: var(--accent);
+  }
+
+  .rule-claim::placeholder,
+  .rule-value::placeholder {
+    color: var(--text-muted);
+  }
+
+  .rule-type {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    padding: 0.45em 0.5em;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    min-width: 0;
+    appearance: none;
+  }
+
+  .rule-type:focus {
+    border-color: var(--accent);
+  }
+
+  .remove-rule-btn {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .remove-rule-btn:hover {
+    color: #fb7185;
+    border-color: #fb7185;
+  }
+
+  .validate-btn {
+    width: 100%;
+    padding: 0.65em 1em;
+    background: var(--accent);
+    color: #0c1120;
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    margin-top: 0.25rem;
+  }
+
+  .validate-btn:hover {
+    opacity: 0.85;
+  }
+
+  .results-container {
+    min-height: 120px;
+  }
+
+  .empty-state {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    padding: 1rem 0;
+  }
+
+  .result-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .result-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    border-left-width: 3px;
+  }
+
+  .result-pass {
+    border-left-color: var(--green);
+  }
+
+  .result-fail {
+    border-left-color: #fb7185;
+  }
+
+  .result-icon {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.5;
+    flex-shrink: 0;
+  }
+
+  .result-pass .result-icon {
+    color: var(--green);
+  }
+
+  .result-fail .result-icon {
+    color: #fb7185;
+  }
+
+  .result-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .result-claim {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .result-rule {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+
+  .result-detail {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    word-break: break-all;
+  }
+</style>

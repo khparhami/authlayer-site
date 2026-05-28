@@ -1,0 +1,486 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="JWT Generator | AuthLayer"
+  description="Generate signed JWT tokens instantly in your browser. Choose algorithm, customize payload claims, and sign with your secret — nothing is sent to a server."
+>
+  <section class="jwt-page">
+    <div class="container">
+      <header class="page-header">
+        <span class="tag">Tools</span>
+        <h1>JWT Generator</h1>
+        <p class="subtitle">
+          Build and sign a JSON Web Token in your browser using the Web Crypto API.
+          Your secret never leaves this page.
+        </p>
+      </header>
+
+      <div class="generator-layout">
+        <div class="pane pane-form">
+          <div class="pane-title">Configuration</div>
+
+          <div class="field">
+            <label class="field-label" for="alg-select">Algorithm</label>
+            <select id="alg-select" class="field-select">
+              <option value="HS256" selected>HS256</option>
+              <option value="HS384">HS384</option>
+              <option value="HS512">HS512</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <div class="field-row">
+              <label class="field-label" for="payload-input">Payload</label>
+              <div class="quick-add">
+                <span class="quick-add-label">Quick add:</span>
+                <button class="quick-btn" data-claim="exp">exp</button>
+                <button class="quick-btn" data-claim="iat">iat</button>
+                <button class="quick-btn" data-claim="nbf">nbf</button>
+                <button class="quick-btn" data-claim="jti">jti</button>
+              </div>
+            </div>
+            <textarea
+              id="payload-input"
+              class="field-textarea"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+              rows="10"
+            ></textarea>
+            <p id="payload-error" class="error-msg" hidden>Invalid JSON in payload.</p>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="secret-input">Secret</label>
+            <div class="secret-row">
+              <input
+                id="secret-input"
+                class="field-input"
+                type="password"
+                value="your-256-bit-secret"
+                spellcheck="false"
+                autocorrect="off"
+                autocapitalize="off"
+              />
+              <button id="secret-toggle" class="toggle-btn" type="button">Show</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane pane-output">
+          <div class="pane-title">Generated Token</div>
+
+          <div class="decoded-block">
+            <div class="block-header">
+              <span class="dot dot-h"></span>
+              <span class="block-title">Header</span>
+            </div>
+            <pre id="header-display" class="json-output"><span class="placeholder">Waiting for input…</span></pre>
+          </div>
+
+          <div class="decoded-block">
+            <div class="block-header">
+              <span class="dot dot-p"></span>
+              <span class="block-title">Payload</span>
+            </div>
+            <pre id="payload-display" class="json-output"><span class="placeholder">Waiting for input…</span></pre>
+          </div>
+
+          <div class="decoded-block">
+            <div class="block-header">
+              <span class="dot dot-s"></span>
+              <span class="block-title">Signature</span>
+            </div>
+            <pre id="sig-display" class="json-output sig-wrap"><span class="placeholder">Waiting for input…</span></pre>
+          </div>
+
+          <div class="token-output-block">
+            <div class="block-header">
+              <span class="block-title">Encoded Token</span>
+              <button id="copy-btn" class="copy-btn" hidden>Copy</button>
+            </div>
+            <div id="token-colored" class="token-colored"></div>
+            <p id="token-error" class="error-msg" hidden>Could not sign token. Check your payload JSON.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  function b64url(data: string | ArrayBuffer): string {
+    let binary = '';
+    if (typeof data === 'string') {
+      const bytes = new TextEncoder().encode(data);
+      for (const b of bytes) binary += String.fromCharCode(b);
+    } else {
+      const bytes = new Uint8Array(data as ArrayBuffer);
+      for (const b of bytes) binary += String.fromCharCode(b);
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  }
+
+  async function signJWT(alg: string, payload: object, secret: string): Promise<string> {
+    const hashMap: Record<string, string> = { HS256: 'SHA-256', HS384: 'SHA-384', HS512: 'SHA-512' };
+    const header = { alg, typ: 'JWT' };
+    const parts = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: hashMap[alg] }, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(parts));
+    return `${parts}.${b64url(sig)}`;
+  }
+
+  function esc(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function highlight(json: string): string {
+    return esc(json).replace(
+      /("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      (match) => {
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) return `<span class="jh-k">${match}</span>`;
+          return `<span class="jh-s">${match}</span>`;
+        }
+        let cls = 'n';
+        if (/true|false/.test(match)) cls = 'b';
+        else if (/null/.test(match)) cls = 'nl';
+        return `<span class="jh-${cls}">${match}</span>`;
+      }
+    );
+  }
+
+  function randomJti(): string {
+    const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
+    return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-${(Math.floor(Math.random() * 4) + 8).toString(16)}${hex().slice(1)}-${hex()}${hex()}${hex()}`;
+  }
+
+  const algSelect = document.getElementById('alg-select') as HTMLSelectElement;
+  const payloadInput = document.getElementById('payload-input') as HTMLTextAreaElement;
+  const payloadError = document.getElementById('payload-error') as HTMLParagraphElement;
+  const secretInput = document.getElementById('secret-input') as HTMLInputElement;
+  const secretToggle = document.getElementById('secret-toggle') as HTMLButtonElement;
+  const headerDisplay = document.getElementById('header-display')!;
+  const payloadDisplay = document.getElementById('payload-display')!;
+  const sigDisplay = document.getElementById('sig-display')!;
+  const tokenColored = document.getElementById('token-colored')!;
+  const tokenError = document.getElementById('token-error') as HTMLParagraphElement;
+  const copyBtn = document.getElementById('copy-btn') as HTMLButtonElement;
+
+  const now = Math.floor(Date.now() / 1000);
+  payloadInput.value = JSON.stringify(
+    { sub: '1234567890', name: 'John Doe', iat: now, exp: now + 3600 },
+    null,
+    2
+  );
+
+  let currentToken = '';
+
+  async function generate(): Promise<void> {
+    const alg = algSelect.value;
+    const secret = secretInput.value;
+    let payload: object;
+
+    try {
+      payload = JSON.parse(payloadInput.value);
+      payloadError.hidden = true;
+    } catch {
+      payloadError.hidden = false;
+      tokenError.hidden = true;
+      tokenColored.innerHTML = '';
+      copyBtn.hidden = true;
+      headerDisplay.innerHTML = '<span class="placeholder">–</span>';
+      payloadDisplay.innerHTML = '<span class="placeholder">–</span>';
+      sigDisplay.innerHTML = '<span class="placeholder">–</span>';
+      return;
+    }
+
+    try {
+      const token = await signJWT(alg, payload, secret);
+      currentToken = token;
+      const parts = token.split('.');
+
+      headerDisplay.innerHTML = highlight(JSON.stringify({ alg, typ: 'JWT' }, null, 2));
+      payloadDisplay.innerHTML = highlight(JSON.stringify(payload, null, 2));
+      sigDisplay.innerHTML = `<span class="tc-s">${esc(parts[2])}</span>`;
+
+      tokenColored.innerHTML =
+        `<span class="tc-h">${esc(parts[0])}</span>` +
+        `<span class="tc-dot">.</span>` +
+        `<span class="tc-p">${esc(parts[1])}</span>` +
+        `<span class="tc-dot">.</span>` +
+        `<span class="tc-s">${esc(parts[2])}</span>`;
+
+      tokenError.hidden = true;
+      copyBtn.hidden = false;
+    } catch {
+      tokenError.hidden = false;
+      tokenColored.innerHTML = '';
+      copyBtn.hidden = true;
+    }
+  }
+
+  algSelect.addEventListener('change', generate);
+  payloadInput.addEventListener('input', generate);
+  secretInput.addEventListener('input', generate);
+
+  secretToggle.addEventListener('click', () => {
+    const isHidden = secretInput.type === 'password';
+    secretInput.type = isHidden ? 'text' : 'password';
+    secretToggle.textContent = isHidden ? 'Hide' : 'Show';
+  });
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(currentToken).then(() => {
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('.quick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const claim = btn.dataset.claim!;
+      const ts = Math.floor(Date.now() / 1000);
+      let existing: Record<string, unknown> = {};
+      try { existing = JSON.parse(payloadInput.value); } catch {}
+      if (claim === 'exp') existing.exp = ts + 3600;
+      else if (claim === 'iat') existing.iat = ts;
+      else if (claim === 'nbf') existing.nbf = ts;
+      else if (claim === 'jti') existing.jti = randomJti();
+      payloadInput.value = JSON.stringify(existing, null, 2);
+      generate();
+    });
+  });
+
+  generate();
+</script>
+
+<style>
+  .jwt-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2.5rem; }
+  .page-header .tag { margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; margin-bottom: 0.75rem; }
+  .subtitle { color: var(--text-dim); max-width: 600px; font-size: 0.95rem; }
+
+  .generator-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 768px) {
+    .generator-layout { grid-template-columns: 1fr; }
+  }
+
+  .pane-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+
+  .field { margin-bottom: 1.25rem; }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.4rem;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-dim);
+    margin-bottom: 0.4rem;
+  }
+
+  .field-row .field-label { margin-bottom: 0; }
+
+  .field-select,
+  .field-input {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    padding: 0.55rem 0.875rem;
+    outline: none;
+    transition: border-color 0.2s;
+    appearance: none;
+  }
+
+  .field-select:focus,
+  .field-input:focus { border-color: var(--accent); }
+
+  .field-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.875rem center;
+    padding-right: 2.25rem;
+    cursor: pointer;
+  }
+
+  .field-textarea {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1.65;
+    padding: 0.875rem 1rem;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field-textarea:focus { border-color: var(--accent); }
+  .field-textarea::placeholder { color: var(--text-muted); }
+
+  .secret-row {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .secret-row .field-input { flex: 1; font-family: var(--font-mono); font-size: 0.82rem; }
+
+  .toggle-btn {
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0 0.875rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+
+  .toggle-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .quick-add {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+  }
+
+  .quick-add-label {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .quick-btn {
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    padding: 0.18em 0.55em;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+
+  .quick-btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(56, 189, 248, 0.06); }
+
+  .error-msg {
+    margin-top: 0.5rem;
+    font-size: 0.82rem;
+    color: #fb7185;
+  }
+
+  .decoded-block { margin-bottom: 1rem; }
+
+  .token-output-block { margin-top: 0.5rem; }
+
+  .block-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .dot-h { background: #fb7185; }
+  .dot-p { background: #c084fc; }
+  .dot-s { background: var(--accent); }
+
+  .block-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+  }
+
+  .copy-btn {
+    margin-left: auto;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2em 0.65em;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .json-output {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.65;
+  }
+
+  .sig-wrap { word-break: break-all; white-space: pre-wrap; }
+
+  .token-colored {
+    padding: 0.875rem 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.7;
+    word-break: break-all;
+    min-height: 3.5rem;
+  }
+
+  .token-colored:empty { display: none; }
+
+  .tc-h   { color: #fb7185; }
+  .tc-p   { color: #c084fc; }
+  .tc-s   { color: var(--accent); }
+  .tc-dot { color: var(--text-muted); }
+
+  .placeholder { color: var(--text-muted); font-style: italic; }
+
+  .jh-k  { color: var(--accent); }
+  .jh-s  { color: var(--green); }
+  .jh-n  { color: #fdba74; }
+  .jh-b  { color: #c084fc; }
+  .jh-nl { color: var(--text-dim); }
+</style>
