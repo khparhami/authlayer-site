@@ -22,17 +22,66 @@ const allTags = [...new Set(allPosts.flatMap(p => p.data.tags))].sort();
 
       <div class="tag-filter">
         <span class="filter-label">Filter:</span>
+        <a href="/blog" class="tag tag-all">All</a>
         {allTags.map(tag => (
-          <a href={`/blog?tag=${tag}`} class="tag">{tag}</a>
+          <a href={`/blog?tag=${tag}`} class="tag" data-tag={tag}>{tag}</a>
         ))}
       </div>
 
-      <div class="posts-grid">
-        {allPosts.map(post => <BlogCard post={post} />)}
+      <div class="posts-grid" id="posts-grid">
+        {allPosts.map(post => (
+          <div data-tags={post.data.tags.join(',')}>
+            <BlogCard post={post} />
+          </div>
+        ))}
       </div>
+
+      <p class="no-results" id="no-results" style="display:none">
+        No articles found for this tag.
+      </p>
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  function applyFilter() {
+    const tag = new URLSearchParams(window.location.search).get('tag') ?? '';
+
+    // Update active state on filter links
+    document.querySelectorAll<HTMLAnchorElement>('.tag-filter .tag').forEach(el => {
+      const elTag = el.dataset.tag ?? '';
+      el.classList.toggle('active', tag ? elTag === tag : el.classList.contains('tag-all'));
+    });
+
+    // Show / hide cards
+    const wrappers = document.querySelectorAll<HTMLElement>('#posts-grid [data-tags]');
+    let visible = 0;
+    wrappers.forEach(wrapper => {
+      const tags = wrapper.dataset.tags?.split(',') ?? [];
+      const show = !tag || tags.includes(tag);
+      wrapper.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    const noResults = document.getElementById('no-results');
+    if (noResults) noResults.style.display = visible === 0 ? 'block' : 'none';
+  }
+
+  applyFilter();
+
+  // Handle browser back/forward navigation
+  window.addEventListener('popstate', applyFilter);
+
+  // Intercept tag link clicks to update URL without full reload
+  document.querySelectorAll<HTMLAnchorElement>('.tag-filter .tag').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      const url = new URL(el.href, window.location.href);
+      window.history.pushState({}, '', url);
+      applyFilter();
+    });
+  });
+</script>
 
 <style>
   .blog-page { padding: 3rem 0 5rem; }
@@ -59,9 +108,23 @@ const allTags = [...new Set(allPosts.flatMap(p => p.data.tags))].sort();
     margin-right: 0.25rem;
   }
 
+  .tag-filter .tag { cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+
+  .tag-filter .tag.active {
+    background: rgba(56, 189, 248, 0.2);
+    color: var(--accent);
+    border-color: rgba(56, 189, 248, 0.5);
+  }
+
   .posts-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1.25rem;
+  }
+
+  .no-results {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    padding: 2rem 0;
   }
 </style>
