@@ -26,7 +26,7 @@ const formattedUpd = updatedDate?.toLocaleDateString('en-AU', { year: 'numeric',
         </div>
         <h1>{title}</h1>
         <p class="post-meta">
-          <span>By {author}</span>
+          <a href="/author" class="author-link">By {author}</a>
           <span class="sep">·</span>
           <time datetime={pubDate.toISOString()}>{formattedPub}</time>
           {updatedDate && (
@@ -127,6 +127,14 @@ const formattedUpd = updatedDate?.toLocaleDateString('en-AU', { year: 'numeric',
     flex-wrap: wrap;
     margin-bottom: 1rem;
   }
+
+  .author-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .author-link:hover { color: var(--accent); text-decoration: none; }
 
   .sep { color: var(--border); }
 

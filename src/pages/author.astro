@@ -1,0 +1,463 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+const allPosts = (await getCollection('blog'))
+  .sort((a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf())
+  .slice(0, 5);
+
+const experience = [
+  {
+    company: 'OFX',
+    roles: [
+      { title: 'Engineering and Platforms Manager', period: 'Jun 2024 – Present' },
+      { title: 'Principal Software Engineer',       period: 'Mar 2022 – Jun 2024' },
+      { title: 'Technical Lead',                    period: 'Aug 2018 – Mar 2022' },
+      { title: 'Senior Software Developer',         period: 'Jan 2018 – Aug 2018' },
+    ],
+    tenure: '8+ years',
+    location: 'Sydney, Australia',
+  },
+  {
+    company: 'Kablamo Pty Ltd',
+    roles: [{ title: 'Senior Software Developer', period: 'Sep 2017 – Jan 2018' }],
+    location: 'Sydney, Australia',
+  },
+  {
+    company: 'ninemsn',
+    roles: [{ title: 'Software Developer', period: 'Jun 2014 – Sep 2017' }],
+    location: 'Sydney, Australia',
+  },
+];
+
+const expertise = [
+  { label: 'Identity & Auth',    desc: 'OAuth 2.0, OIDC, JWT, MFA, fraud prevention' },
+  { label: 'API Design',         desc: 'RESTful API architecture, security, governance' },
+  { label: 'Cloud & AWS',        desc: 'Certified AWS architect, infrastructure design' },
+  { label: 'Engineering Leadership', desc: 'Technical lead, principal engineer, eng manager' },
+  { label: 'Financial Services', desc: '8+ years in fintech identity and fraud platforms' },
+  { label: 'Full-Stack',         desc: 'Language-agnostic, .NET, Node.js, cloud-native' },
+];
+
+const certifications = [
+  'MCSD: Web Applications',
+  'Designing RESTful APIs',
+  'Becoming a Manager Your Team Loves',
+  'Gamification',
+];
+---
+
+<BaseLayout
+  title="Khashayar Parhami — Author | AuthLayer"
+  description="Khashayar Parhami is an Engineering Manager specialising in identity, fraud, and API security. He writes AuthLayer's guides on OAuth 2.0, JWT, MFA, and applied cybersecurity."
+>
+  <div class="author-page">
+    <div class="container">
+
+      <!-- Hero -->
+      <section class="hero">
+        <img
+          src="/images/khashayar-parhami.jpg"
+          alt="Khashayar Parhami"
+          class="avatar-photo"
+          width="96"
+          height="96"
+        />
+        <div class="hero-text">
+          <h1>Khashayar Parhami</h1>
+          <p class="headline">Engineering &amp; Platforms Manager · Identity, Fraud &amp; API</p>
+          <p class="location">
+            <span class="location-dot"></span>
+            Sydney, New South Wales, Australia
+          </p>
+          <div class="hero-links">
+            <a
+              href="https://www.linkedin.com/in/khashayarparhami/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="social-link linkedin"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+              </svg>
+              LinkedIn
+            </a>
+            <a href="mailto:khashayar.parhami@gmail.com" class="social-link email">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+              Email
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <div class="layout">
+        <main class="main-col">
+
+          <!-- About -->
+          <section class="card">
+            <h2>About</h2>
+            <p>
+              Khashayar is an Engineering Manager with over 20 years of experience in software
+              engineering, the last 8+ of which have been spent at <strong>OFX</strong> building
+              and leading the Identity, Fraud, and API platforms that protect one of Australia's
+              largest international money transfer services.
+            </p>
+            <p>
+              His day-to-day work sits at the intersection of authentication architecture, fraud
+              signal engineering, and API security — the same territory AuthLayer covers. He writes
+              here to translate the hard-won lessons from production identity systems into
+              practical, accurate guides for developers who need to get auth right.
+            </p>
+            <p>
+              He is a language-agnostic developer, a certified AWS architect, and has held roles
+              spanning individual contributor, tech lead, principal engineer, and engineering
+              manager across fintech, media, and consulting.
+            </p>
+          </section>
+
+          <!-- Experience -->
+          <section class="card">
+            <h2>Experience</h2>
+            <div class="timeline">
+              {experience.map(job => (
+                <div class="timeline-item">
+                  <div class="timeline-company">
+                    <span class="company-name">{job.company}</span>
+                    {job.tenure && <span class="tenure">{job.tenure}</span>}
+                    <span class="company-location">{job.location}</span>
+                  </div>
+                  <div class="timeline-roles">
+                    {job.roles.map(role => (
+                      <div class="role">
+                        <span class="role-title">{role.title}</span>
+                        <span class="role-period">{role.period}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <!-- Recent Articles -->
+          <section class="card">
+            <h2>Recent Articles</h2>
+            <ul class="article-list">
+              {allPosts.map(post => (
+                <li>
+                  <a href={`/blog/${post.slug}`} class="article-link">
+                    <span class="article-title">{post.data.title}</span>
+                    <time class="article-date" datetime={post.data.pubDate.toISOString()}>
+                      {post.data.pubDate.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </time>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <a href="/blog" class="see-all">See all articles →</a>
+          </section>
+
+        </main>
+
+        <aside class="side-col">
+
+          <!-- Expertise -->
+          <section class="card">
+            <h3>Areas of expertise</h3>
+            <div class="expertise-list">
+              {expertise.map(e => (
+                <div class="expertise-item">
+                  <span class="expertise-label">{e.label}</span>
+                  <span class="expertise-desc">{e.desc}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <!-- Education -->
+          <section class="card">
+            <h3>Education</h3>
+            <div class="edu-item">
+              <span class="edu-school">Azad University Tehran</span>
+              <span class="edu-degree">BASc, Computer Science</span>
+              <span class="edu-years">1996 – 2001</span>
+            </div>
+          </section>
+
+          <!-- Certifications -->
+          <section class="card">
+            <h3>Certifications</h3>
+            <ul class="cert-list">
+              {certifications.map(c => (
+                <li>{c}</li>
+              ))}
+            </ul>
+          </section>
+
+          <!-- Languages -->
+          <section class="card">
+            <h3>Languages</h3>
+            <ul class="lang-list">
+              <li><span>English</span><span class="lang-level">Native / Bilingual</span></li>
+              <li><span>Persian</span><span class="lang-level">Native / Bilingual</span></li>
+            </ul>
+          </section>
+
+        </aside>
+      </div>
+
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .author-page { padding: 3rem 0 5rem; }
+
+  /* Hero */
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 3rem;
+    flex-wrap: wrap;
+  }
+
+  .avatar-photo {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid var(--border);
+  }
+
+  .hero-text h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    color: #fff;
+    margin-bottom: 0.3rem;
+  }
+
+  .headline {
+    color: var(--accent);
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 0.4rem;
+  }
+
+  .location {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .location-dot {
+    width: 6px; height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .hero-links {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .social-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.4rem 0.9rem;
+    border-radius: 6px;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .social-link:hover { color: var(--text); border-color: var(--accent); text-decoration: none; }
+  .social-link.linkedin:hover { color: #38bdf8; }
+
+  /* Layout */
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 768px) {
+    .layout { grid-template-columns: 1fr; }
+    .side-col { display: contents; }
+  }
+
+  /* Card */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .card h2 {
+    font-size: 1.1rem;
+    color: #fff;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .card h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+
+  .card p {
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    line-height: 1.75;
+    font-size: 0.95rem;
+  }
+
+  .card p:last-child { margin-bottom: 0; }
+  .card strong { color: var(--text); }
+
+  /* Timeline */
+  .timeline { display: flex; flex-direction: column; gap: 1.75rem; }
+
+  .timeline-item { padding-left: 1rem; border-left: 2px solid var(--border); }
+
+  .timeline-company {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .company-name { font-weight: 700; color: #fff; font-size: 0.95rem; }
+  .tenure {
+    font-size: 0.75rem;
+    color: var(--accent);
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 9999px;
+    padding: 0.1em 0.55em;
+  }
+  .company-location { font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
+
+  .timeline-roles { display: flex; flex-direction: column; gap: 0.4rem; }
+
+  .role {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .role-title { color: var(--text-dim); font-size: 0.9rem; }
+  .role-period { color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0; }
+
+  /* Recent articles */
+  .article-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    margin-bottom: 1rem;
+  }
+
+  .article-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+
+  .article-link:hover .article-title { color: var(--accent); }
+  .article-link:hover { text-decoration: none; }
+
+  .article-title { color: var(--text-dim); font-size: 0.875rem; line-height: 1.4; }
+  .article-date { color: var(--text-muted); font-size: 0.775rem; flex-shrink: 0; }
+
+  .see-all { color: var(--accent); font-size: 0.875rem; }
+
+  /* Expertise */
+  .expertise-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .expertise-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .expertise-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+  .expertise-label { color: #fff; font-size: 0.875rem; font-weight: 600; }
+  .expertise-desc { color: var(--text-muted); font-size: 0.8rem; }
+
+  /* Education */
+  .edu-item { display: flex; flex-direction: column; gap: 0.2rem; }
+  .edu-school { color: #fff; font-size: 0.875rem; font-weight: 600; }
+  .edu-degree { color: var(--text-dim); font-size: 0.85rem; }
+  .edu-years { color: var(--text-muted); font-size: 0.8rem; }
+
+  /* Certifications */
+  .cert-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cert-list li {
+    color: var(--text-dim);
+    font-size: 0.875rem;
+    padding-left: 1rem;
+    position: relative;
+  }
+
+  .cert-list li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--green);
+    font-size: 0.75rem;
+  }
+
+  /* Languages */
+  .lang-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .lang-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .lang-list span:first-child { color: var(--text-dim); font-size: 0.875rem; }
+  .lang-level { color: var(--text-muted); font-size: 0.775rem; }
+</style>
