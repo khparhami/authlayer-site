@@ -1,0 +1,171 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Privacy Policy | AuthLayer"
+  description="Privacy policy for AuthLayer — how we collect, use, and protect your information."
+>
+  <section class="privacy-page">
+    <div class="container">
+      <header class="page-header">
+        <span class="tag">Legal</span>
+        <h1>Privacy Policy</h1>
+        <p class="meta">Last updated: June 1, 2025</p>
+      </header>
+
+      <div class="policy-body">
+        <p>
+          This Privacy Policy describes how <strong>AuthLayer</strong> ("we", "us", or "our") collects,
+          uses, and shares information when you visit <a href="https://authlayer.dev">authlayer.dev</a> (the "Site").
+        </p>
+
+        <h2>Information We Collect</h2>
+        <p>
+          We do not require registration or account creation to read content on AuthLayer. When you
+          visit the Site, standard server and analytics data may be collected automatically, including:
+        </p>
+        <ul>
+          <li>Browser type and version</li>
+          <li>Pages visited and time spent on each page</li>
+          <li>Referring URL</li>
+          <li>Device type and operating system</li>
+          <li>IP address (anonymised)</li>
+        </ul>
+
+        <h2>Cookies</h2>
+        <p>
+          The Site uses cookies and similar tracking technologies to operate and improve your experience.
+          These include:
+        </p>
+        <ul>
+          <li>
+            <strong>Analytics cookies</strong> — We use Cloudflare Web Analytics to understand how
+            visitors use the Site. This service may collect anonymised usage data.
+          </li>
+          <li>
+            <strong>Advertising cookies</strong> — We use Google AdSense to display advertisements.
+            Google may use cookies to personalise ads based on your prior visits to this site and
+            other sites. Google's use of advertising cookies enables it and its partners to serve
+            ads based on your visit to AuthLayer and other sites on the Internet.
+          </li>
+        </ul>
+        <p>
+          You may opt out of personalised advertising by visiting
+          <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener noreferrer">
+            Google Ads Settings
+          </a>
+          or by visiting
+          <a href="http://www.aboutads.info/choices/" target="_blank" rel="noopener noreferrer">
+            aboutads.info
+          </a>.
+        </p>
+
+        <h2>Google AdSense</h2>
+        <p>
+          We use Google AdSense, a third-party advertising service provided by Google LLC. Google
+          AdSense uses cookies to serve ads based on a user's prior visits to this website or other
+          websites. Google's advertising requirements can be summed up by
+          <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">
+            Google's Advertising Principles
+          </a>.
+        </p>
+        <p>
+          Third-party vendors, including Google, use cookies to serve ads based on prior visits to
+          our site. For more information on how Google collects and processes data in connection with
+          advertising, see
+          <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
+            Google's Privacy Policy
+          </a>.
+        </p>
+
+        <h2>How We Use Your Information</h2>
+        <p>We use the information collected to:</p>
+        <ul>
+          <li>Operate and improve the Site</li>
+          <li>Understand how visitors use our content</li>
+          <li>Display relevant advertisements</li>
+          <li>Diagnose technical problems</li>
+        </ul>
+
+        <h2>Third-Party Links</h2>
+        <p>
+          Articles on AuthLayer may link to third-party websites. We are not responsible for the
+          privacy practices of those sites and encourage you to review their privacy policies.
+        </p>
+
+        <h2>Data Retention</h2>
+        <p>
+          We retain anonymised analytics data for up to 12 months. We do not store personal
+          information beyond what is necessary to operate the Site.
+        </p>
+
+        <h2>Your Rights</h2>
+        <p>
+          Depending on your location, you may have rights under applicable privacy law (such as
+          GDPR or CCPA) to access, correct, or delete personal data we hold about you. To exercise
+          these rights, contact us at the address below.
+        </p>
+
+        <h2>Changes to This Policy</h2>
+        <p>
+          We may update this Privacy Policy from time to time. The "Last updated" date at the top
+          of this page reflects the most recent revision. Continued use of the Site after changes
+          constitutes your acceptance of the updated policy.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          If you have questions about this Privacy Policy, please contact us at:
+          <a href="mailto:khashayar.parhami@gmail.com">khashayar.parhami@gmail.com</a>
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .privacy-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2.5rem; }
+  .page-header .tag { margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; margin-bottom: 0.4rem; }
+  .meta { color: var(--text-muted); font-size: 0.875rem; }
+
+  .policy-body { max-width: 720px; }
+
+  .policy-body p { color: var(--text-dim); margin-bottom: 1.25rem; line-height: 1.75; }
+
+  .policy-body h2 {
+    font-size: 1.2rem;
+    color: #fff;
+    margin: 2.5rem 0 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .policy-body ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .policy-body li {
+    color: var(--text-dim);
+    padding-left: 1.25rem;
+    position: relative;
+    line-height: 1.7;
+  }
+
+  .policy-body li::before {
+    content: '–';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  .policy-body strong { color: var(--text); }
+  .policy-body a { color: var(--accent); text-underline-offset: 3px; }
+</style>

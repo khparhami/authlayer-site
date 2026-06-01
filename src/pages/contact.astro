@@ -1,0 +1,137 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Contact | AuthLayer"
+  description="Get in touch with the AuthLayer team for corrections, feedback, or general enquiries."
+>
+  <section class="contact-page">
+    <div class="container">
+      <header class="page-header">
+        <span class="tag">Contact</span>
+        <h1>Get in Touch</h1>
+      </header>
+
+      <div class="contact-body">
+        <p>
+          Have a question, found an error in an article, or want to suggest a topic?
+          We'd love to hear from you.
+        </p>
+
+        <div class="contact-cards">
+          <div class="contact-card">
+            <div class="card-icon">✉</div>
+            <div>
+              <h2>Email</h2>
+              <p>For corrections, feedback, or general enquiries:</p>
+              <a href="mailto:khashayar.parhami@gmail.com" class="contact-link">
+                khashayar.parhami@gmail.com
+              </a>
+            </div>
+          </div>
+
+          <div class="contact-card">
+            <div class="card-icon">✎</div>
+            <div>
+              <h2>Content corrections</h2>
+              <p>
+                Security content needs to be accurate. If you spot a factual error,
+                outdated information, or a misleading claim in any article, please
+                email us with the article title and the correction.
+              </p>
+            </div>
+          </div>
+
+          <div class="contact-card">
+            <div class="card-icon">◎</div>
+            <div>
+              <h2>Topic suggestions</h2>
+              <p>
+                Is there an authentication or security topic you'd like us to cover?
+                Send us a brief description and we'll consider it for a future article.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="response-note">
+          <p>We aim to respond to all enquiries within 2–3 business days.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .contact-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2.5rem; }
+  .page-header .tag { margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; }
+
+  .contact-body { max-width: 640px; }
+
+  .contact-body > p {
+    color: var(--text-dim);
+    margin-bottom: 2.5rem;
+    font-size: 1.05rem;
+  }
+
+  .contact-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .contact-card {
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+  }
+
+  .card-icon {
+    font-size: 1.25rem;
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+  }
+
+  .contact-card h2 {
+    font-size: 1rem;
+    color: #fff;
+    margin-bottom: 0.4rem;
+  }
+
+  .contact-card p {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .contact-link {
+    display: inline-block;
+    color: var(--accent);
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin-top: 0.5rem;
+    text-underline-offset: 3px;
+  }
+
+  .response-note {
+    border-left: 3px solid var(--border);
+    padding-left: 1rem;
+  }
+
+  .response-note p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin: 0;
+  }
+</style>
