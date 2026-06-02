@@ -4,6 +4,7 @@ description: "A practical security checklist for REST APIs covering authenticati
 pubDate: 2026-06-02
 author: "Khashayar Parhami"
 tags: ["api-security", "security", "guide"]
+image: "/images/og/api-security-checklist.png"
 featured: false
 ---
 

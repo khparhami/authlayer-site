@@ -245,4 +245,239 @@ await generate({
   tagline: 'Identity Provider Comparison',
 });
 
+async function generateArticle({ filename, eyebrow, title, items, accentColor }) {
+  const svg = await satori(
+    {
+      type: 'div',
+      props: {
+        style: {
+          width: '1200px',
+          height: '630px',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#080c18',
+          position: 'relative',
+          fontFamily: 'Inter',
+          overflow: 'hidden',
+        },
+        children: [
+          // Top accent bar
+          {
+            type: 'div',
+            props: {
+              style: {
+                position: 'absolute', top: '0', left: '0',
+                width: '1200px', height: '4px',
+                background: 'linear-gradient(90deg, #38bdf8 0%, #818cf8 100%)',
+              },
+              children: '',
+            },
+          },
+          // Background glow
+          {
+            type: 'div',
+            props: {
+              style: {
+                position: 'absolute', top: '-120px', right: '-120px',
+                width: '600px', height: '600px',
+                background: `radial-gradient(circle, ${accentColor}18 0%, transparent 65%)`,
+              },
+              children: '',
+            },
+          },
+          // Bottom-left glow
+          {
+            type: 'div',
+            props: {
+              style: {
+                position: 'absolute', bottom: '-80px', left: '-80px',
+                width: '400px', height: '400px',
+                background: 'radial-gradient(circle, #818cf818 0%, transparent 65%)',
+              },
+              children: '',
+            },
+          },
+          // Content
+          {
+            type: 'div',
+            props: {
+              style: {
+                display: 'flex',
+                flex: '1',
+                padding: '64px 80px 0',
+                gap: '64px',
+                alignItems: 'flex-start',
+              },
+              children: [
+                // Left — title block
+                {
+                  type: 'div',
+                  props: {
+                    style: {
+                      display: 'flex',
+                      flexDirection: 'column',
+                      flex: '1',
+                      gap: '20px',
+                      paddingTop: '8px',
+                    },
+                    children: [
+                      // Eyebrow tag
+                      {
+                        type: 'div',
+                        props: {
+                          style: {
+                            display: 'flex',
+                            alignSelf: 'flex-start',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: accentColor,
+                            background: `${accentColor}18`,
+                            border: `1px solid ${accentColor}40`,
+                            padding: '5px 16px',
+                            borderRadius: '9999px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                          },
+                          children: eyebrow,
+                        },
+                      },
+                      // Title
+                      {
+                        type: 'div',
+                        props: {
+                          style: {
+                            fontSize: '52px',
+                            fontWeight: 700,
+                            color: '#ffffff',
+                            lineHeight: 1.15,
+                            letterSpacing: '-0.02em',
+                          },
+                          children: title,
+                        },
+                      },
+                    ],
+                  },
+                },
+                // Right — checklist items
+                {
+                  type: 'div',
+                  props: {
+                    style: {
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
+                      width: '340px',
+                      flexShrink: '0',
+                      paddingTop: '4px',
+                    },
+                    children: items.map(item => ({
+                      type: 'div',
+                      props: {
+                        style: {
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          background: '#0f1526',
+                          border: '1px solid #1e2a45',
+                          borderRadius: '8px',
+                          padding: '12px 16px',
+                        },
+                        children: [
+                          {
+                            type: 'div',
+                            props: {
+                              style: {
+                                width: '20px', height: '20px',
+                                borderRadius: '50%',
+                                background: `${accentColor}20`,
+                                border: `1.5px solid ${accentColor}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: '0',
+                                fontSize: '11px',
+                                color: accentColor,
+                                fontWeight: 700,
+                              },
+                              children: '✓',
+                            },
+                          },
+                          {
+                            type: 'div',
+                            props: {
+                              style: { fontSize: '15px', color: '#94a3b8', fontWeight: 400 },
+                              children: item,
+                            },
+                          },
+                        ],
+                      },
+                    })),
+                  },
+                },
+              ],
+            },
+          },
+          // Footer
+          {
+            type: 'div',
+            props: {
+              style: {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 80px 40px',
+                marginTop: 'auto',
+              },
+              children: [
+                {
+                  type: 'div',
+                  props: {
+                    style: { fontSize: '18px', color: '#475569' },
+                    children: 'authlayer.dev',
+                  },
+                },
+                {
+                  type: 'div',
+                  props: {
+                    style: { fontSize: '20px', fontWeight: 700, color: '#38bdf8' },
+                    children: 'AuthLayer',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      width: 1200,
+      height: 630,
+      fonts: [
+        { name: 'Inter', data: fontData, weight: 700, style: 'normal' },
+        { name: 'Inter', data: fontDataReg, weight: 400, style: 'normal' },
+      ],
+    }
+  );
+
+  const png = new Resvg(svg).render().asPng();
+  const out = path.join(root, 'public/images/og', filename);
+  fs.writeFileSync(out, png);
+  console.log(`Generated: ${out}`);
+}
+
+await generateArticle({
+  filename: 'api-security-checklist.png',
+  eyebrow: 'Security Guide',
+  title: 'API Security\nChecklist',
+  accentColor: '#34d399',
+  items: [
+    'Authentication & tokens',
+    'Object-level authorisation',
+    'Input validation',
+    'Rate limiting',
+    'Transport security',
+    'Logging & alerting',
+  ],
+});
+
 console.log('Done.');
