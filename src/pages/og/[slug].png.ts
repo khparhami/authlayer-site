@@ -44,7 +44,9 @@ export async function GET({ props }: APIContext) {
     try {
       const imgPath = path.join(process.cwd(), 'public', articleImage);
       const imgBuf = fs.readFileSync(imgPath);
-      bgDataUrl = `data:image/jpeg;base64,${imgBuf.toString('base64')}`;
+      const ext = path.extname(imgPath).toLowerCase();
+      const mime = ext === '.png' ? 'image/png' : ext === '.svg' ? 'image/svg+xml' : 'image/jpeg';
+      bgDataUrl = `data:${mime};base64,${imgBuf.toString('base64')}`;
     } catch (_) {
       // fall through to plain dark background
     }
