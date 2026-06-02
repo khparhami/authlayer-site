@@ -2,7 +2,7 @@
 title: "OAuth 2.0 Explained: Flows, Tokens, and Common Mistakes"
 description: "A developer-focused breakdown of OAuth 2.0 — authorization code flow, PKCE, token types, and the security pitfalls that trip up even experienced engineers."
 pubDate: 2026-01-15
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["oauth", "security", "guide"]
 image: "/images/og/oauth2.jpg"
 featured: true

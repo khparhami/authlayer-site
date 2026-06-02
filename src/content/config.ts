@@ -7,7 +7,7 @@ const blog = defineCollection({
     description: z.string(),
     pubDate: z.date(),
     updatedDate: z.date().optional(),
-    author: z.string().default('AuthLayer Team'),
+    author: z.string().default('Khashayar Parhami'),
     tags: z.array(z.string()).default([]),
     image: z.string().optional(),
     featured: z.boolean().default(false),

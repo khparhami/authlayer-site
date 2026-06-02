@@ -2,7 +2,7 @@
 title: "OAuth Sprawl: How Shadow AI Apps Become Attack Vectors"
 description: "The Vercel breach shows how a single unapproved OAuth connection to an AI tool became a full internal compromise. OAuth tokens are persistent, programmatic, and invisible to most security teams — and attackers know it."
 pubDate: 2026-04-30
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["oauth", "security", "identity", "saas", "ai"]
 image: "/images/og/oauth-sprawl.jpg"
 featured: false

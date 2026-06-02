@@ -2,7 +2,7 @@
 title: "Trusted by Design: How Attackers Are Weaponising Your AI Toolchain"
 description: "This week attackers abused Hugging Face, Claude.ai shared chats, and Google Ads to deliver infostealers — while a CVSS 9.1 flaw in Ollama exposed 300,000 self-hosted servers to memory leaks. The AI toolchain is now a primary credential theft vector."
 pubDate: 2026-05-11
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["identity", "threats", "supply-chain", "security"]
 image: "/images/og/ai-toolchain.jpg"
 featured: false

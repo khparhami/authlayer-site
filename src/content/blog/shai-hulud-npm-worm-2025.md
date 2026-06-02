@@ -2,7 +2,7 @@
 title: "Shai-Hulud: The Self-Replicating Worm That Spread Through Millions of Developer Tools"
 description: "In 2025, a self-replicating malware named after the sandworms of Dune spread across 187 npm packages — including CrowdStrike's own security tooling. It didn't just steal credentials. It copied itself. Here's how it worked, why it matters to everyone, and what it revealed about the software supply chain."
 pubDate: 2026-05-23
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["supply-chain", "malware", "npm", "developer-security", "credentials"]
 image: "/images/og/shai-hulud-supply-chain.jpg"
 featured: false

@@ -2,7 +2,7 @@
 title: "The OAuth Back Door: How UNC6395 Entered 700 Organisations Without Triggering MFA"
 description: "UNC6395 didn't phish in real time or crack any passwords. They presented OAuth refresh tokens that Drift had already been granted — and walked into Salesforce environments across 700+ organisations. OAuth grants don't expire when employees leave. Attackers know this."
 pubDate: 2026-05-07
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["oauth", "identity", "security", "saas"]
 image: "/images/og/oauth-tokens.jpg"
 featured: false

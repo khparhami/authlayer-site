@@ -2,7 +2,7 @@
 title: "JWT Best Practices for Production Applications"
 description: "A practical guide to issuing, storing, and managing JWTs correctly — algorithm selection, key rotation, refresh token patterns, revocation strategies, and the storage debate settled."
 pubDate: 2026-06-01
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["jwt", "security", "guide"]
 featured: false
 ---

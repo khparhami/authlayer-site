@@ -2,7 +2,7 @@
 title: "What Is OpenID Connect? The Identity Layer OAuth 2.0 Was Missing"
 description: "OpenID Connect adds authentication to OAuth 2.0's authorization framework. Learn how it works, what the ID token contains, how discovery and UserInfo fit in, and the validation mistakes that undermine it."
 pubDate: 2026-06-01
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["oauth", "oidc", "security", "guide"]
 featured: false
 ---

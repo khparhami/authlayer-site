@@ -2,7 +2,7 @@
 title: "Before, During, and After: Authentication Is Being Attacked at Every Stage"
 description: "This week's threat landscape in one picture: AI infrastructure deployed with no authentication, automated tools abusing Azure OAuth pre-trusted apps, and malware stealing OTPs directly from Microsoft Phone Link. Three separate attacks on the same kill chain."
 pubDate: 2026-05-06
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["identity", "oauth", "mfa", "security"]
 image: "/images/og/auth-attack-surface.jpg"
 featured: false

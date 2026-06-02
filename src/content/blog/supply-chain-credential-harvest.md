@@ -2,7 +2,7 @@
 title: "npm install and the Credential Harvest: Supply Chain Attacks Are Now Identity Attacks"
 description: "A wave of malicious packages across npm, PyPI, and Packagist is specifically targeting developer credentials — .env files, AWS keys, GitHub tokens, CI/CD secrets. The package installs clean. The malware runs on import."
 pubDate: 2026-05-01
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["supply-chain", "security", "credentials", "developer", "identity"]
 image: "/images/og/supply-chain.jpg"
 featured: false

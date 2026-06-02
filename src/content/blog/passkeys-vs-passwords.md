@@ -2,7 +2,7 @@
 title: "Passkeys vs Passwords: How Passkeys Work and Why They Win"
 description: "Passkeys use public-key cryptography to replace passwords entirely. Learn the technical mechanics, the security properties, and what implementing passkeys actually looks like in 2026."
 pubDate: 2026-03-10
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["passkeys", "fido2", "security", "guide"]
 image: "/images/og/passkeys.jpg"
 ---

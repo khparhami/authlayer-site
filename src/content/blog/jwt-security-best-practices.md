@@ -2,7 +2,7 @@
 title: "JWT Security Best Practices: What Can Go Wrong and How to Fix It"
 description: "JWTs are everywhere — and so are JWT vulnerabilities. Learn the algorithm confusion attacks, none algorithm bypass, weak secret issues, and validation mistakes that lead to authentication bypasses."
 pubDate: 2026-02-03
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["jwt", "security", "vulnerabilities"]
 image: "/images/og/jwt.jpg"
 ---

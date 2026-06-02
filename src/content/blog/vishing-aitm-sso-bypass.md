@@ -2,7 +2,7 @@
 title: "Vishing + AiTM: How a Phone Call Is Bypassing Your SSO and MFA"
 description: "Two cybercrime groups are combining voice phishing with adversary-in-the-middle proxies to steal SSO session tokens after MFA completes — and then running rapid SaaS extortion. Here's the exact attack chain and what actually stops it."
 pubDate: 2026-05-04
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["phishing", "mfa", "identity", "sso"]
 image: "/images/og/vishing.jpg"
 featured: false

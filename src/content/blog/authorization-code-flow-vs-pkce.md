@@ -2,7 +2,7 @@
 title: "Authorization Code Flow vs PKCE: A Visual Comparison"
 description: "Side-by-side walkthrough of OAuth 2.0's authorization code flow and PKCE with sequence diagrams — when each applies and how PKCE blocks code interception attacks."
 pubDate: 2026-05-06
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["oauth", "pkce", "security", "guide"]
 image: "/images/og/pkce.jpg"
 ---

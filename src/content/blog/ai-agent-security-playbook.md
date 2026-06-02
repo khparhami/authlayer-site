@@ -2,7 +2,7 @@
 title: "You Secured the Model. You Forgot to Secure the Agent."
 description: "AI agents consume untrusted data, call real APIs, maintain persistent memory, and chain decisions together — without any of the security primitives we apply to other software. Six attack surfaces that are being exploited now, and the controls that actually close them."
 pubDate: 2026-05-27
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["security", "identity", "developer-security", "ai-agents"]
 image: "/images/og/ai-agent-attack-surface.png"
 featured: false

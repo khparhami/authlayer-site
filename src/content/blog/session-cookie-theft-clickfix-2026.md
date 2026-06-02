@@ -2,7 +2,7 @@
 title: "The Cookie Is the Credential: How ClickFix and Info-Stealers Are Bypassing MFA at Scale"
 description: "ClickFix doesn't steal your password. It tricks you into running a command that deploys Vidar Stealer, which silently exports every session cookie from every browser profile on your machine. The session cookie is the credential — and MFA never gets a chance to stop it."
 pubDate: 2026-05-08
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["phishing", "mfa", "identity", "browser-security"]
 image: "/images/og/session-cookies.jpg"
 featured: false

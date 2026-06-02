@@ -2,7 +2,7 @@
 title: "AI Found the Hole: The First Documented AI-Generated 2FA Bypass Used in the Wild"
 description: "Google TAG identified a cybercrime group using an AI-generated zero-day to bypass 2FA on a widely-used web admin tool — the first documented case of AI-assisted vulnerability discovery in an active mass-exploitation campaign."
 pubDate: 2026-05-12
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["mfa", "identity", "vulnerabilities", "threats"]
 image: "/images/og/ai-2fa-bypass.jpg"
 featured: false

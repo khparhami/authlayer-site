@@ -2,7 +2,7 @@
 title: "One Phone Call, $100 Million: The Scattered Spider Attack on MGM Resorts"
 description: "In September 2023, a threat actor called MGM's IT help desk, spent 10 minutes impersonating an employee, and walked away with Okta super-admin credentials. What followed was 10 days of operational chaos, $100M in losses, and one of the most instructive identity attacks ever documented."
 pubDate: 2026-05-21
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["social-engineering", "okta", "identity", "ransomware", "incident-response"]
 image: "/images/og/scattered-spider-mgm.jpg"
 featured: false

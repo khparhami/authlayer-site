@@ -2,7 +2,7 @@
 title: "MFA Complete Guide: TOTP, FIDO2, Push Notifications, and What to Use When"
 description: "A practical comparison of every major MFA method — TOTP authenticator apps, SMS OTP, FIDO2 hardware keys, push notifications, and passkeys — with attack resistance ratings and implementation advice."
 pubDate: 2026-02-20
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["mfa", "security", "guide", "fido2"]
 image: "/images/og/mfa.jpg"
 ---

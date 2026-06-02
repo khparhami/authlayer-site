@@ -2,7 +2,7 @@
 title: "The Entra ID Role Flaw That Let You Hijack Service Principals"
 description: "Microsoft just patched an Entra ID privilege escalation bug that allowed low-privileged roles to take over service principals. Here's what broke and why it keeps breaking."
 pubDate: 2026-04-29
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["security", "azure", "identity", "vulnerabilities"]
 image: "/images/og/entra.jpg"
 featured: false

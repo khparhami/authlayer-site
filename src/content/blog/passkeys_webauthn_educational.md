@@ -2,7 +2,7 @@
 title: "Passkeys & WebAuthn Explained: How Passwordless Authentication Actually Works"
 description: "A deep dive into passkeys, WebAuthn, FIDO2, device-bound credentials, phishing resistance, and how modern authentication flows work behind the scenes."
 pubDate: 2026-05-17
-author: "AuthLayer Team"
+author: "Khashayar Parhami"
 tags: ["passkeys", "webauthn", "fido2", "authentication", "identity", "security"]
 image: "/images/og/passkeys-webauthn-og.jpg"
 featured: true
