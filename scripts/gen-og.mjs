@@ -521,4 +521,19 @@ await generateArticle({
   ],
 });
 
+await generateArticle({
+  filename: 'password-hashing-explained.png',
+  eyebrow: 'Cryptography Fundamentals',
+  title: 'Password Hashing\nExplained',
+  accentColor: '#f59e0b',
+  items: [
+    'Why MD5 & SHA-1 are wrong',
+    'How slow hashing works',
+    'bcrypt deep dive',
+    'Argon2 — the modern choice',
+    'scrypt & memory hardness',
+    'Migration strategies',
+  ],
+});
+
 console.log('Done.');
