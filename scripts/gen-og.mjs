@@ -506,4 +506,19 @@ await generateArticle({
   ],
 });
 
+await generateArticle({
+  filename: 'service-to-service-auth.png',
+  eyebrow: 'Machine Identity',
+  title: 'Service-to-Service\nAuthentication',
+  accentColor: '#38bdf8',
+  items: [
+    'API keys',
+    'Mutual TLS (mTLS)',
+    'Service JWTs',
+    'OAuth client credentials',
+    'Secret management',
+    'Zero-trust service mesh',
+  ],
+});
+
 console.log('Done.');
