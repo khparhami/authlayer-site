@@ -491,4 +491,19 @@ await generate({
   tagline: 'Authorisation Model Comparison',
 });
 
+await generateArticle({
+  filename: 'saml-explained.png',
+  eyebrow: 'Enterprise SSO',
+  title: 'SAML 2.0\nExplained',
+  accentColor: '#818cf8',
+  items: [
+    'IdP vs SP roles',
+    'Assertions & XML tokens',
+    'SP-initiated flow',
+    'IdP-initiated flow',
+    'Attribute mapping',
+    'SAML vs OIDC trade-offs',
+  ],
+});
+
 console.log('Done.');
