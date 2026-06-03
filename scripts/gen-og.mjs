@@ -581,4 +581,19 @@ await generateArticle({
   ],
 });
 
+await generateArticle({
+  filename: 'designing-oauth-scopes.png',
+  eyebrow: 'OAuth 2.0',
+  title: 'Designing OAuth\nScopes for Your API',
+  accentColor: '#818cf8',
+  items: [
+    'Scope naming conventions',
+    'Granularity trade-offs',
+    'Resource vs action scopes',
+    'Avoiding scope sprawl',
+    'Versioning scopes',
+    'Consent UX design',
+  ],
+});
+
 console.log('Done.');
