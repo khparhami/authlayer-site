@@ -551,4 +551,19 @@ await generateArticle({
   ],
 });
 
+await generateArticle({
+  filename: 'secure-cookie-design.png',
+  eyebrow: 'Browser Security',
+  title: 'Secure Cookie\nDesign',
+  accentColor: '#f59e0b',
+  items: [
+    'HttpOnly — blocks JS access',
+    'Secure — HTTPS only',
+    'SameSite — CSRF defence',
+    'Domain & Path scoping',
+    'Max-Age vs Expires',
+    'Cookie prefixes',
+  ],
+});
+
 console.log('Done.');
