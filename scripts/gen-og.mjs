@@ -566,4 +566,19 @@ await generateArticle({
   ],
 });
 
+await generateArticle({
+  filename: 'cors-and-api-security.png',
+  eyebrow: 'Browser Security',
+  title: 'CORS and\nAPI Security',
+  accentColor: '#38bdf8',
+  items: [
+    'What CORS actually protects',
+    'Preflight requests explained',
+    'Wildcard origin dangers',
+    'Credentials & cookies',
+    'What CORS does NOT prevent',
+    'Secure configuration patterns',
+  ],
+});
+
 console.log('Done.');
