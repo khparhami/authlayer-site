@@ -536,4 +536,19 @@ await generateArticle({
   ],
 });
 
+await generateArticle({
+  filename: 'zero-trust-explained.png',
+  eyebrow: 'Security Architecture',
+  title: 'Zero Trust\nArchitecture',
+  accentColor: '#34d399',
+  items: [
+    'Never trust, always verify',
+    'Identity-aware access',
+    'Device posture checks',
+    'Micro-segmentation',
+    'Continuous authorisation',
+    'Practical implementation',
+  ],
+});
+
 console.log('Done.');
