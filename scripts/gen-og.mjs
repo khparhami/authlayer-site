@@ -480,4 +480,15 @@ await generateArticle({
   ],
 });
 
+await generate({
+  filename: 'rbac-vs-abac.png',
+  leftLabel: 'RBAC',
+  leftSub: 'Role-Based Access Control',
+  leftColor: '#38bdf8',
+  rightLabel: 'ABAC',
+  rightSub: 'Attribute-Based Access Control',
+  rightColor: '#818cf8',
+  tagline: 'Authorisation Model Comparison',
+});
+
 console.log('Done.');
