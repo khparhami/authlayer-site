@@ -596,4 +596,19 @@ await generateArticle({
   ],
 });
 
+await generateArticle({
+  filename: 'nist-800-63-4.png',
+  eyebrow: 'Identity Standards',
+  title: 'NIST SP 800-63-4\nDigital Identity',
+  accentColor: '#34d399',
+  items: [
+    'Passkeys meet AAL2 officially',
+    'SMS OTP now restricted',
+    'KBA deprecated at all levels',
+    'Syncable authenticators defined',
+    'Compromised credential checks',
+    'DPoP required for FAL2',
+  ],
+});
+
 console.log('Done.');
