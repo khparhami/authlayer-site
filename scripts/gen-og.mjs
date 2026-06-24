@@ -596,19 +596,307 @@ await generateArticle({
   ],
 });
 
-await generateArticle({
-  filename: 'nist-800-63-4.png',
-  eyebrow: 'Identity Standards',
-  title: 'NIST SP 800-63-4\nDigital Identity',
-  accentColor: '#34d399',
-  items: [
-    'Passkeys meet AAL2 officially',
-    'SMS OTP now restricted',
-    'KBA deprecated at all levels',
-    'Syncable authenticators defined',
-    'Compromised credential checks',
-    'DPoP required for FAL2',
-  ],
-});
+async function generateNistOg({ filename }) {
+  const accent = '#34d399';
+
+  function bar(level, barHeight, color, isHighlighted) {
+    const children = [
+      {
+        type: 'div',
+        props: {
+          style: {
+            position: 'absolute',
+            bottom: `${barHeight + 14}px`,
+            left: '0',
+            right: '0',
+            display: 'flex',
+            justifyContent: 'center',
+          },
+          children: [{
+            type: 'div',
+            props: {
+              style: {
+                fontSize: '12px',
+                fontWeight: 700,
+                color,
+                background: `${color}18`,
+                border: `1px solid ${color}40`,
+                padding: '4px 14px',
+                borderRadius: '9999px',
+                letterSpacing: '0.06em',
+              },
+              children: level,
+            },
+          }],
+        },
+      },
+      {
+        type: 'div',
+        props: {
+          style: {
+            position: 'absolute',
+            bottom: '0',
+            left: '0',
+            right: '0',
+            height: `${barHeight}px`,
+            background: isHighlighted
+              ? `linear-gradient(180deg, ${color}90 0%, ${color}28 100%)`
+              : `linear-gradient(180deg, ${color}38 0%, ${color}0a 100%)`,
+            border: `1px solid ${color}${isHighlighted ? '55' : '22'}`,
+            borderRadius: '10px 10px 4px 4px',
+          },
+          children: '',
+        },
+      },
+    ];
+
+    if (isHighlighted) {
+      children.push({
+        type: 'div',
+        props: {
+          style: {
+            position: 'absolute',
+            bottom: `${Math.floor(barHeight / 2) - 10}px`,
+            left: '0',
+            right: '0',
+            display: 'flex',
+            justifyContent: 'center',
+          },
+          children: [{
+            type: 'div',
+            props: {
+              style: {
+                fontSize: '10px',
+                fontWeight: 700,
+                color,
+                background: `${color}22`,
+                border: `1px solid ${color}55`,
+                padding: '3px 10px',
+                borderRadius: '9999px',
+                letterSpacing: '0.12em',
+              },
+              children: 'NEW',
+            },
+          }],
+        },
+      });
+    }
+
+    return {
+      type: 'div',
+      props: {
+        style: {
+          display: 'flex',
+          position: 'relative',
+          width: '120px',
+          height: '340px',
+          flexShrink: '0',
+        },
+        children,
+      },
+    };
+  }
+
+  const svg = await satori(
+    {
+      type: 'div',
+      props: {
+        style: {
+          width: '1200px',
+          height: '630px',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#080c18',
+          fontFamily: 'Inter',
+          overflow: 'hidden',
+          position: 'relative',
+        },
+        children: [
+          {
+            type: 'div',
+            props: {
+              style: {
+                position: 'absolute', top: '0', left: '0',
+                width: '1200px', height: '4px',
+                background: 'linear-gradient(90deg, #34d399 0%, #818cf8 100%)',
+              },
+              children: '',
+            },
+          },
+          {
+            type: 'div',
+            props: {
+              style: {
+                position: 'absolute', top: '-140px', right: '100px',
+                width: '560px', height: '560px',
+                background: 'radial-gradient(circle, #34d39910 0%, transparent 60%)',
+              },
+              children: '',
+            },
+          },
+          {
+            type: 'div',
+            props: {
+              style: {
+                position: 'absolute', bottom: '-100px', left: '-80px',
+                width: '400px', height: '400px',
+                background: 'radial-gradient(circle, #818cf810 0%, transparent 65%)',
+              },
+              children: '',
+            },
+          },
+          {
+            type: 'div',
+            props: {
+              style: {
+                display: 'flex',
+                flex: '1',
+                padding: '55px 80px 0',
+                gap: '70px',
+                alignItems: 'center',
+              },
+              children: [
+                {
+                  type: 'div',
+                  props: {
+                    style: {
+                      display: 'flex',
+                      flexDirection: 'column',
+                      flex: '1',
+                      gap: '22px',
+                    },
+                    children: [
+                      {
+                        type: 'div',
+                        props: {
+                          style: {
+                            display: 'flex',
+                            alignSelf: 'flex-start',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: accent,
+                            background: `${accent}15`,
+                            border: `1px solid ${accent}35`,
+                            padding: '5px 16px',
+                            borderRadius: '9999px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.1em',
+                          },
+                          children: 'Identity Standards',
+                        },
+                      },
+                      {
+                        type: 'div',
+                        props: {
+                          style: {
+                            fontSize: '74px',
+                            fontWeight: 700,
+                            color: '#ffffff',
+                            lineHeight: 1.05,
+                            letterSpacing: '-0.03em',
+                          },
+                          children: 'NIST SP\n800-63-4',
+                        },
+                      },
+                      {
+                        type: 'div',
+                        props: {
+                          style: {
+                            fontSize: '19px',
+                            color: '#475569',
+                            fontWeight: 400,
+                          },
+                          children: 'Digital Identity Guidelines',
+                        },
+                      },
+                    ],
+                  },
+                },
+                {
+                  type: 'div',
+                  props: {
+                    style: {
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      width: '460px',
+                      flexShrink: '0',
+                      gap: '0px',
+                    },
+                    children: [
+                      {
+                        type: 'div',
+                        props: {
+                          style: {
+                            display: 'flex',
+                            alignItems: 'flex-end',
+                            gap: '20px',
+                            height: '340px',
+                            justifyContent: 'center',
+                          },
+                          children: [
+                            bar('AAL1', 100, '#64748b', false),
+                            bar('AAL2', 210, accent, true),
+                            bar('AAL3', 310, '#818cf8', false),
+                          ],
+                        },
+                      },
+                      {
+                        type: 'div',
+                        props: {
+                          style: {
+                            display: 'flex',
+                            gap: '20px',
+                            marginTop: '14px',
+                            justifyContent: 'center',
+                          },
+                          children: [
+                            { type: 'div', props: { style: { width: '120px', textAlign: 'center', fontSize: '12px', color: '#475569' }, children: 'Password' } },
+                            { type: 'div', props: { style: { width: '120px', textAlign: 'center', fontSize: '12px', color: accent, fontWeight: 700 }, children: 'Passkeys · MFA' } },
+                            { type: 'div', props: { style: { width: '120px', textAlign: 'center', fontSize: '12px', color: '#818cf8' }, children: 'Hardware Keys' } },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+          {
+            type: 'div',
+            props: {
+              style: {
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 80px 36px',
+                marginTop: 'auto',
+              },
+              children: [
+                { type: 'div', props: { style: { fontSize: '16px', color: '#334155' }, children: 'authlayer.dev' } },
+                { type: 'div', props: { style: { fontSize: '20px', fontWeight: 700, color: '#38bdf8' }, children: 'AuthLayer' } },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      width: 1200,
+      height: 630,
+      fonts: [
+        { name: 'Inter', data: fontData, weight: 700, style: 'normal' },
+        { name: 'Inter', data: fontDataReg, weight: 400, style: 'normal' },
+      ],
+    }
+  );
+
+  const png = new Resvg(svg).render().asPng();
+  fs.writeFileSync(path.join(root, 'public/images/og', filename), png);
+  console.log(`Generated: ${path.join(root, 'public/images/og', filename)}`);
+}
+
+await generateNistOg({ filename: 'nist-800-63-4.png' });
 
 console.log('Done.');
