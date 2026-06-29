@@ -1,0 +1,787 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+
+const PAID_CHECK_PREVIEWS = [
+  { name: 'SameSite Cookie Policy', category: 'cookies' },
+  { name: 'Secure Cookie Prefixes', category: 'cookies' },
+  { name: 'Content-Security-Policy Strength', category: 'headers' },
+  { name: 'Referrer-Policy', category: 'headers' },
+  { name: 'Permissions-Policy', category: 'headers' },
+  { name: 'Cross-Origin Isolation (COOP/CORP)', category: 'headers' },
+  { name: 'OIDC Discovery Endpoint', category: 'oauth' },
+  { name: 'PKCE Enforcement', category: 'oauth' },
+  { name: 'Deprecated OAuth Grant Types', category: 'oauth' },
+  { name: 'Passkey / WebAuthn Support', category: 'oauth' },
+  { name: 'DKIM Record', category: 'email' },
+  { name: 'DMARC Policy Level', category: 'email' },
+  { name: 'SPF Enforcement Level', category: 'email' },
+  { name: 'Auth Subdomain Surface', category: 'exposure' },
+  { name: 'CORS Policy', category: 'headers' },
+  { name: 'Security.txt', category: 'exposure' },
+];
+---
+
+<BaseLayout
+  title="Identity Security Health Check | AuthLayer"
+  description="Scan any domain for authentication and identity security issues — HTTPS, HSTS, cookie flags, SPF, DMARC, OAuth endpoints, passkeys, and more. Free and full report options."
+>
+  <section class="hc-page">
+    <div class="container">
+
+      <header class="page-header">
+        <span class="tag">Tools</span>
+        <h1>Identity Security Health Check</h1>
+        <p class="subtitle">
+          Passive scan of any domain's authentication and identity security posture.
+          All checks run server-side — HTTP headers, DNS records, and well-known endpoints.
+          Nothing is written to the target.
+        </p>
+      </header>
+
+      <div class="input-card">
+        <div class="input-row">
+          <div class="domain-field">
+            <label for="domain-input" class="sr-only">Domain to scan</label>
+            <input
+              id="domain-input"
+              type="text"
+              class="domain-input"
+              placeholder="example.com"
+              autocomplete="off"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+            />
+          </div>
+          <div class="btn-group">
+            <button id="btn-free" class="btn btn-primary" type="button">Run Free Report</button>
+            <button id="btn-paid" class="btn btn-pro" type="button">
+              Full Report
+              <span class="pro-badge">Pro</span>
+            </button>
+          </div>
+        </div>
+        <p id="input-error" class="input-error" hidden>Enter a valid domain name (e.g. example.com)</p>
+      </div>
+
+      <div id="results-area" class="results-area">
+
+        <div id="state-empty" class="state-empty">
+          <div class="empty-icon">⬡</div>
+          <p>Enter a domain above to scan its identity security posture.</p>
+        </div>
+
+        <div id="state-loading" class="state-loading" hidden>
+          <div class="spinner"></div>
+          <div class="loading-text">
+            Running checks on <strong id="loading-domain"></strong>…
+          </div>
+          <p class="loading-sub">Checks run in parallel — results appear momentarily.</p>
+        </div>
+
+        <div id="state-results" hidden>
+
+          <div class="score-row">
+            <div id="score-ring" class="score-ring" data-grade="?">
+              <div class="score-grade" id="score-grade">?</div>
+              <div class="score-num" id="score-num">—</div>
+            </div>
+            <div class="score-meta">
+              <div class="score-domain" id="score-domain"></div>
+              <div class="summary-chips" id="summary-chips"></div>
+              <div class="report-badge" id="report-badge"></div>
+            </div>
+          </div>
+
+          <div id="results-list" class="results-list"></div>
+
+          <div id="paid-teaser" class="paid-teaser" hidden>
+            <div class="teaser-header">
+              <span class="lock-icon">⊘</span>
+              <div>
+                <div class="teaser-title">Full Report — 16 additional checks</div>
+                <div class="teaser-sub">Cookie policy, CSP strength, OAuth posture, DKIM, DMARC enforcement, subdomain surface, and more</div>
+              </div>
+            </div>
+            <ul class="teaser-list" id="teaser-list"></ul>
+            <button id="btn-upgrade" class="btn btn-pro teaser-btn" type="button">
+              Run Full Report
+              <span class="pro-badge">Pro</span>
+            </button>
+          </div>
+
+        </div>
+
+        <div id="state-error" class="state-error" hidden>
+          <span class="error-icon">✗</span>
+          <span id="error-text"></span>
+        </div>
+
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<script define:vars={{ PAID_CHECK_PREVIEWS }}>
+  const domainInput = document.getElementById('domain-input');
+  const btnFree     = document.getElementById('btn-free');
+  const btnPaid     = document.getElementById('btn-paid');
+  const btnUpgrade  = document.getElementById('btn-upgrade');
+  const inputError  = document.getElementById('input-error');
+
+  const stateEmpty   = document.getElementById('state-empty');
+  const stateLoading = document.getElementById('state-loading');
+  const stateResults = document.getElementById('state-results');
+  const stateError   = document.getElementById('state-error');
+
+  const loadingDomain = document.getElementById('loading-domain');
+  const scoreRing     = document.getElementById('score-ring');
+  const scoreGrade    = document.getElementById('score-grade');
+  const scoreNum      = document.getElementById('score-num');
+  const scoreDomain   = document.getElementById('score-domain');
+  const summaryChips  = document.getElementById('summary-chips');
+  const reportBadge   = document.getElementById('report-badge');
+  const resultsList   = document.getElementById('results-list');
+  const paidTeaser    = document.getElementById('paid-teaser');
+  const teaserList    = document.getElementById('teaser-list');
+  const errorText     = document.getElementById('error-text');
+
+  const CATEGORY_LABELS = {
+    transport: 'Transport Security',
+    cookies:   'Cookie Security',
+    headers:   'HTTP Security Headers',
+    email:     'Email Authentication',
+    oauth:     'OAuth / OIDC Posture',
+    exposure:  'Exposure & Disclosure',
+  };
+
+  const STATUS_ICON = { pass: '✓', fail: '✗', warn: '⚠', info: 'i', error: '–' };
+
+  const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+
+  function sanitizeDomainClient(input) {
+    let d = input.trim().toLowerCase();
+    d = d.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    return d || null;
+  }
+
+  function isValidDomain(d) {
+    if (!d) return false;
+    return /^[a-z0-9]([a-z0-9\-.]{0,251}[a-z0-9])?$/.test(d) &&
+      !/^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(d);
+  }
+
+  function setState(name) {
+    stateEmpty.hidden   = name !== 'empty';
+    stateLoading.hidden = name !== 'loading';
+    stateResults.hidden = name !== 'results';
+    stateError.hidden   = name !== 'error';
+  }
+
+  function gradeColor(grade) {
+    return { A: '#34d399', B: '#4ade80', C: '#fbbf24', D: '#f97316', F: '#f87171' }[grade] ?? '#64748b';
+  }
+
+  function severityClass(sev) {
+    return { critical: 'sev-critical', high: 'sev-high', medium: 'sev-medium', low: 'sev-low', info: 'sev-info' }[sev] ?? '';
+  }
+
+  function buildResults(data) {
+    const { domain, report, score, grade, checks } = data;
+
+    // Score ring
+    const color = gradeColor(grade);
+    scoreRing.style.setProperty('--grade-color', color);
+    scoreGrade.textContent = grade;
+    scoreNum.textContent = `${score}/100`;
+    scoreDomain.textContent = domain;
+
+    // Report badge
+    reportBadge.textContent = report === 'paid' ? 'Full Report' : 'Free Report';
+    reportBadge.className = 'report-badge ' + (report === 'paid' ? 'badge-paid' : 'badge-free');
+
+    // Summary chips
+    const passed  = checks.filter(c => c.status === 'pass').length;
+    const warned  = checks.filter(c => c.status === 'warn').length;
+    const failed  = checks.filter(c => c.status === 'fail').length;
+    const errored = checks.filter(c => c.status === 'error').length;
+    summaryChips.innerHTML = [
+      `<span class="chip chip-pass">${passed} passed</span>`,
+      warned  ? `<span class="chip chip-warn">${warned} warning${warned > 1 ? 's' : ''}</span>` : '',
+      failed  ? `<span class="chip chip-fail">${failed} failed</span>` : '',
+      errored ? `<span class="chip chip-err">${errored} error${errored > 1 ? 's' : ''}</span>` : '',
+    ].filter(Boolean).join('');
+
+    // Group by category
+    const categories = {};
+    for (const check of checks) {
+      if (!categories[check.category]) categories[check.category] = [];
+      categories[check.category].push(check);
+    }
+
+    // Sort within each category: fail/warn first, then by severity
+    for (const cat of Object.values(categories)) {
+      cat.sort((a, b) => {
+        const statusOrder = { fail: 0, warn: 1, error: 2, info: 3, pass: 4 };
+        const so = (statusOrder[a.status] ?? 5) - (statusOrder[b.status] ?? 5);
+        if (so !== 0) return so;
+        return (SEVERITY_ORDER[a.severity] ?? 5) - (SEVERITY_ORDER[b.severity] ?? 5);
+      });
+    }
+
+    resultsList.innerHTML = '';
+    for (const [catKey, catChecks] of Object.entries(categories)) {
+      const section = document.createElement('div');
+      section.className = 'result-section';
+      section.innerHTML = `<div class="result-section-title">${CATEGORY_LABELS[catKey] ?? catKey}</div>`;
+
+      for (const check of catChecks) {
+        const card = document.createElement('div');
+        card.className = `result-card status-${check.status}`;
+
+        const hasDetail = check.detail || check.remediation;
+        const detailHtml = hasDetail ? `
+          <div class="result-detail" hidden>
+            ${check.detail ? `<p class="detail-text">${escHtml(check.detail)}</p>` : ''}
+            ${check.remediation ? `<div class="remediation"><span class="remed-label">Remediation:</span> ${escHtml(check.remediation)}</div>` : ''}
+          </div>` : '';
+
+        card.innerHTML = `
+          <div class="result-row" ${hasDetail ? 'role="button" tabindex="0" class="result-row expandable"' : ''}>
+            <span class="status-icon status-${check.status}">${STATUS_ICON[check.status] ?? '–'}</span>
+            <span class="check-name">${escHtml(check.name)}</span>
+            ${check.status !== 'pass' && check.status !== 'info' ? `<span class="sev-badge ${severityClass(check.severity)}">${check.severity}</span>` : ''}
+            <span class="check-finding">${escHtml(check.finding)}</span>
+            ${hasDetail ? '<span class="expand-arrow">▸</span>' : ''}
+          </div>
+          ${detailHtml}`;
+
+        if (hasDetail) {
+          const row = card.querySelector('.result-row');
+          const detail = card.querySelector('.result-detail');
+          const arrow = card.querySelector('.expand-arrow');
+          function toggleDetail() {
+            const open = !detail.hidden;
+            detail.hidden = open;
+            arrow.textContent = open ? '▸' : '▾';
+            card.classList.toggle('expanded', !open);
+          }
+          row.addEventListener('click', toggleDetail);
+          row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') toggleDetail(); });
+        }
+
+        section.appendChild(card);
+      }
+      resultsList.appendChild(section);
+    }
+
+    // Paid teaser (only for free reports)
+    if (report === 'free') {
+      teaserList.innerHTML = PAID_CHECK_PREVIEWS.map(c =>
+        `<li class="teaser-item">
+          <span class="lock-pill">🔒</span>
+          <span class="teaser-check-name">${escHtml(c.name)}</span>
+          <span class="teaser-cat">${CATEGORY_LABELS[c.category] ?? c.category}</span>
+        </li>`
+      ).join('');
+      paidTeaser.hidden = false;
+    } else {
+      paidTeaser.hidden = true;
+    }
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  async function runReport(reportType) {
+    const raw = domainInput.value;
+    const domain = sanitizeDomainClient(raw);
+
+    inputError.hidden = true;
+    if (!isValidDomain(domain)) {
+      inputError.hidden = false;
+      domainInput.focus();
+      return;
+    }
+
+    setState('loading');
+    loadingDomain.textContent = domain;
+    btnFree.disabled = true;
+    btnPaid.disabled = true;
+
+    try {
+      const res = await fetch(`/api/health-check?domain=${encodeURIComponent(domain)}&report=${reportType}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Scan failed');
+      buildResults(data);
+      setState('results');
+    } catch (e) {
+      errorText.textContent = e.message ?? 'An unexpected error occurred';
+      setState('error');
+    } finally {
+      btnFree.disabled = false;
+      btnPaid.disabled = false;
+    }
+  }
+
+  btnFree.addEventListener('click', () => runReport('free'));
+  btnPaid.addEventListener('click', () => runReport('paid'));
+  btnUpgrade?.addEventListener('click', () => runReport('paid'));
+
+  domainInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') runReport('free');
+  });
+
+  domainInput.addEventListener('input', () => {
+    const raw = domainInput.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (raw) domainInput.value = raw;
+  });
+</script>
+
+<style>
+  .hc-page { padding: 3rem 0 5rem; }
+
+  .page-header { margin-bottom: 2rem; }
+  .page-header .tag { margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; margin-bottom: 0.75rem; }
+  .subtitle { color: var(--text-dim); max-width: 640px; font-size: 0.95rem; line-height: 1.6; }
+
+  /* Input card */
+  .input-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .domain-field { flex: 1; min-width: 220px; }
+
+  .domain-input {
+    width: 100%;
+    height: 100%;
+    min-height: 44px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    padding: 0.6rem 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+  }
+  .domain-input:focus { border-color: var(--accent); }
+  .domain-input::placeholder { color: var(--text-muted); }
+
+  .btn-group { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+  .btn {
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #080c18;
+  }
+  .btn-primary:hover:not(:disabled) { opacity: 0.88; }
+
+  .btn-pro {
+    background: transparent;
+    border: 1px solid #818cf8;
+    color: #818cf8;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .btn-pro:hover:not(:disabled) { background: #818cf812; }
+
+  .pro-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    background: #818cf820;
+    border: 1px solid #818cf840;
+    color: #818cf8;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .input-error {
+    color: #f87171;
+    font-size: 0.82rem;
+    margin-top: 0.5rem;
+  }
+
+  /* Results area */
+  .results-area { min-height: 200px; }
+
+  /* Empty state */
+  .state-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 4rem 1rem;
+    color: var(--text-muted);
+    text-align: center;
+  }
+  .empty-icon { font-size: 2.5rem; color: var(--border); line-height: 1; }
+
+  /* Loading */
+  .state-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 4rem 1rem;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text { font-size: 1rem; color: var(--text); }
+  .loading-sub  { font-size: 0.82rem; color: var(--text-muted); }
+
+  /* Error */
+  .state-error {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: #f871711a;
+    border: 1px solid #f8717140;
+    border-radius: 8px;
+    color: #f87171;
+    font-size: 0.875rem;
+  }
+  .error-icon { font-size: 1.1rem; flex-shrink: 0; }
+
+  /* Score row */
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .score-ring {
+    --grade-color: #64748b;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 4px solid var(--grade-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--grade-color) 8%, transparent);
+  }
+
+  .score-grade {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--grade-color, #64748b);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .score-num {
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .score-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .score-domain {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .summary-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+  .chip {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.25em 0.75em;
+    border-radius: 9999px;
+    letter-spacing: 0.02em;
+  }
+  .chip-pass { background: #34d39920; border: 1px solid #34d39940; color: #34d399; }
+  .chip-warn { background: #fbbf2420; border: 1px solid #fbbf2440; color: #fbbf24; }
+  .chip-fail { background: #f8717120; border: 1px solid #f8717140; color: #f87171; }
+  .chip-err  { background: #64748b20; border: 1px solid #64748b40; color: #94a3b8; }
+
+  .report-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.2em 0.75em;
+    border-radius: 4px;
+    align-self: flex-start;
+  }
+  .badge-free { background: #38bdf820; border: 1px solid #38bdf840; color: #38bdf8; }
+  .badge-paid { background: #818cf820; border: 1px solid #818cf840; color: #818cf8; }
+
+  /* Results list */
+  .results-list { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .result-section {}
+
+  .result-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    padding-left: 0.25rem;
+  }
+
+  .result-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 0.35rem;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .result-card.status-fail { border-left: 3px solid #f87171; }
+  .result-card.status-warn { border-left: 3px solid #fbbf24; }
+  .result-card.status-pass { border-left: 3px solid #34d399; }
+  .result-card.status-info { border-left: 3px solid #38bdf8; }
+  .result-card.status-error{ border-left: 3px solid #475569; }
+  .result-card.expanded { border-color: var(--accent); }
+
+  .result-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+  }
+  .result-row.expandable { cursor: pointer; user-select: none; }
+  .result-row.expandable:hover { background: var(--bg-hover); }
+
+  .status-icon {
+    font-size: 0.85rem;
+    font-weight: 700;
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .status-icon.status-pass  { color: #34d399; }
+  .status-icon.status-fail  { color: #f87171; }
+  .status-icon.status-warn  { color: #fbbf24; }
+  .status-icon.status-info  { color: #38bdf8; }
+  .status-icon.status-error { color: #475569; }
+
+  .check-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .sev-badge {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.15em 0.55em;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .sev-critical { background: #f8717125; border: 1px solid #f8717150; color: #f87171; }
+  .sev-high     { background: #fb923c25; border: 1px solid #fb923c50; color: #fb923c; }
+  .sev-medium   { background: #fbbf2425; border: 1px solid #fbbf2450; color: #fbbf24; }
+  .sev-low      { background: #38bdf825; border: 1px solid #38bdf850; color: #38bdf8; }
+  .sev-info     { background: #64748b20; border: 1px solid #64748b40; color: #94a3b8; }
+
+  .check-finding {
+    font-size: 0.825rem;
+    color: var(--text-dim);
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .expand-arrow {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-left: auto;
+    transition: transform 0.15s;
+  }
+
+  .result-detail {
+    padding: 0 1rem 1rem 2.6rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .detail-text {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.65;
+    margin: 0.75rem 0 0;
+  }
+
+  .remediation {
+    margin-top: 0.75rem;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.65;
+    padding: 0.75rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .remed-label {
+    font-weight: 700;
+    color: #34d399;
+    margin-right: 0.25rem;
+  }
+
+  /* Paid teaser */
+  .paid-teaser {
+    margin-top: 2rem;
+    background: var(--bg-card);
+    border: 1px solid #818cf830;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .teaser-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #818cf820;
+  }
+
+  .lock-icon {
+    font-size: 1.4rem;
+    color: #818cf8;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+  }
+
+  .teaser-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.25rem;
+  }
+  .teaser-sub {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .teaser-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0;
+    padding: 0;
+  }
+
+  .teaser-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.5rem;
+    border-bottom: 1px solid #818cf810;
+    opacity: 0.6;
+  }
+
+  .lock-pill {
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+
+  .teaser-check-name {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    flex: 1;
+  }
+
+  .teaser-cat {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-style: italic;
+    white-space: nowrap;
+  }
+
+  .teaser-btn {
+    margin: 1.25rem 1.5rem;
+  }
+
+  /* hidden attribute must win over any display: flex rules */
+  [hidden] { display: none !important; }
+
+  /* Accessibility */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 768px) {
+    .input-row { flex-direction: column; }
+    .domain-field { width: 100%; }
+    .btn-group { width: 100%; }
+    .btn { flex: 1; justify-content: center; }
+    .score-row { flex-direction: column; align-items: flex-start; }
+    .result-row { flex-wrap: wrap; }
+    .check-name { white-space: normal; }
+  }
+</style>
