@@ -156,7 +156,11 @@ const PAID_CHECK_PREVIEWS = [
     exposure:  'Exposure & Disclosure',
   };
 
-  const STATUS_ICON = { pass: '✓', fail: '✗', warn: '⚠', info: 'i', error: '–' };
+  const STATUS_ICON  = { pass: '✓', fail: '✗', warn: '⚠', info: '●', error: '?' };
+  const STATUS_LABEL = { pass: 'Pass', fail: 'Fail', warn: 'Warning', info: 'Info', error: 'N/A' };
+
+  const SEV_ICON  = { critical: '◆', high: '▲', medium: '■', low: '▸', info: '·' };
+  const SEV_LABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', info: 'Info' };
 
   const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
 
@@ -237,23 +241,57 @@ const PAID_CHECK_PREVIEWS = [
       section.innerHTML = `<div class="result-section-title">${CATEGORY_LABELS[catKey] ?? catKey}</div>`;
 
       for (const check of catChecks) {
-        const card = document.createElement('div');
-        card.className = `result-card status-${check.status}`;
+        const isError = check.status === 'error';
+        const showSev = check.status === 'fail' || check.status === 'warn';
+        const hasDetail = check.detail || check.remediation || isError;
+        const sevClass = severityClass(check.severity);
 
-        const hasDetail = check.detail || check.remediation;
-        const detailHtml = hasDetail ? `
-          <div class="result-detail" hidden>
-            ${check.detail ? `<p class="detail-text">${escHtml(check.detail)}</p>` : ''}
-            ${check.remediation ? `<div class="remediation"><span class="remed-label">Remediation:</span> ${escHtml(check.remediation)}</div>` : ''}
+        // severity accent class on card for fail/warn
+        let cardClass = `result-card status-${check.status}`;
+        if (check.status === 'fail' && check.severity === 'critical') cardClass += ' accent-critical';
+        else if (check.status === 'fail' && check.severity === 'high') cardClass += ' accent-high';
+
+        // References HTML
+        const refsHtml = check.references?.length ? `
+          <div class="ref-row">
+            <span class="ref-label">References</span>
+            ${check.references.map(r =>
+              `<a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="ref-link">${escHtml(r.label)}</a>`
+            ).join('')}
           </div>` : '';
 
+        // Error explanation banner
+        const errorBannerHtml = isError ? `
+          <div class="error-banner">
+            <span class="error-banner-icon">?</span>
+            <div>
+              <div class="error-banner-title">Could not complete this check</div>
+              <div class="error-banner-body">${escHtml(check.errorReason ?? 'The domain may be unreachable, the request timed out, or the endpoint does not exist. This is not necessarily a security finding.')}</div>
+            </div>
+          </div>` : '';
+
+        const detailHtml = hasDetail ? `
+          <div class="result-detail" hidden>
+            ${isError ? errorBannerHtml : ''}
+            ${check.detail ? `<p class="detail-text">${escHtml(check.detail)}</p>` : ''}
+            ${check.remediation ? `<div class="remediation"><span class="remed-label">How to fix</span>${escHtml(check.remediation)}</div>` : ''}
+            ${refsHtml}
+          </div>` : '';
+
+        const card = document.createElement('div');
+        card.className = cardClass;
         card.innerHTML = `
-          <div class="result-row" ${hasDetail ? 'role="button" tabindex="0" class="result-row expandable"' : ''}>
-            <span class="status-icon status-${check.status}">${STATUS_ICON[check.status] ?? '–'}</span>
-            <span class="check-name">${escHtml(check.name)}</span>
-            ${check.status !== 'pass' && check.status !== 'info' ? `<span class="sev-badge ${severityClass(check.severity)}">${check.severity}</span>` : ''}
-            <span class="check-finding">${escHtml(check.finding)}</span>
-            ${hasDetail ? '<span class="expand-arrow">▸</span>' : ''}
+          <div class="result-row${hasDetail ? ' expandable' : ''}"${hasDetail ? ' role="button" tabindex="0"' : ''}>
+            <span class="status-dot status-${check.status}" title="${STATUS_LABEL[check.status] ?? check.status}">${STATUS_ICON[check.status] ?? '?'}</span>
+            <div class="result-body">
+              <div class="result-header-row">
+                <span class="check-name">${escHtml(check.name)}</span>
+                ${showSev ? `<span class="sev-badge ${sevClass}"><span class="sev-icon">${SEV_ICON[check.severity] ?? ''}</span>${SEV_LABEL[check.severity] ?? check.severity}</span>` : ''}
+                ${isError ? '<span class="sev-badge sev-na">N/A</span>' : ''}
+              </div>
+              <span class="check-finding">${escHtml(check.finding)}</span>
+            </div>
+            ${hasDetail ? '<span class="expand-arrow" aria-hidden="true">▸</span>' : ''}
           </div>
           ${detailHtml}`;
 
@@ -261,14 +299,14 @@ const PAID_CHECK_PREVIEWS = [
           const row = card.querySelector('.result-row');
           const detail = card.querySelector('.result-detail');
           const arrow = card.querySelector('.expand-arrow');
-          function toggleDetail() {
+          const toggle = () => {
             const open = !detail.hidden;
             detail.hidden = open;
-            arrow.textContent = open ? '▸' : '▾';
+            if (arrow) arrow.textContent = open ? '▸' : '▾';
             card.classList.toggle('expanded', !open);
-          }
-          row.addEventListener('click', toggleDetail);
-          row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') toggleDetail(); });
+          };
+          row.addEventListener('click', toggle);
+          row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
         }
 
         section.appendChild(card);
@@ -586,107 +624,208 @@ const PAID_CHECK_PREVIEWS = [
   .result-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
     border-radius: 8px;
     margin-bottom: 0.35rem;
     overflow: hidden;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, background 0.15s;
   }
-  .result-card.status-fail { border-left: 3px solid #f87171; }
-  .result-card.status-warn { border-left: 3px solid #fbbf24; }
-  .result-card.status-pass { border-left: 3px solid #34d399; }
-  .result-card.status-info { border-left: 3px solid #38bdf8; }
-  .result-card.status-error{ border-left: 3px solid #475569; }
-  .result-card.expanded { border-color: var(--accent); }
+  .result-card.status-fail  { border-left-color: #f87171; }
+  .result-card.status-warn  { border-left-color: #fbbf24; }
+  .result-card.status-pass  { border-left-color: #34d399; }
+  .result-card.status-info  { border-left-color: #38bdf8; }
+  .result-card.status-error { border-left-color: #475569; }
+  .result-card.accent-critical { background: color-mix(in srgb, #f87171 4%, var(--bg-card)); }
+  .result-card.accent-high     { background: color-mix(in srgb, #fb923c 3%, var(--bg-card)); }
+  .result-card.expanded { border-color: #475569; border-left-color: inherit; }
 
   .result-row {
     display: flex;
-    align-items: baseline;
-    gap: 0.6rem;
-    padding: 0.75rem 1rem;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 1rem;
   }
   .result-row.expandable { cursor: pointer; user-select: none; }
   .result-row.expandable:hover { background: var(--bg-hover); }
 
-  .status-icon {
-    font-size: 0.85rem;
-    font-weight: 700;
-    width: 18px;
-    text-align: center;
+  .status-dot {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 800;
     flex-shrink: 0;
+    line-height: 1;
   }
-  .status-icon.status-pass  { color: #34d399; }
-  .status-icon.status-fail  { color: #f87171; }
-  .status-icon.status-warn  { color: #fbbf24; }
-  .status-icon.status-info  { color: #38bdf8; }
-  .status-icon.status-error { color: #475569; }
+  .status-dot.status-pass  { background: #34d39922; color: #34d399; border: 1.5px solid #34d39950; }
+  .status-dot.status-fail  { background: #f8717122; color: #f87171; border: 1.5px solid #f8717150; }
+  .status-dot.status-warn  { background: #fbbf2422; color: #fbbf24; border: 1.5px solid #fbbf2450; }
+  .status-dot.status-info  { background: #38bdf822; color: #38bdf8; border: 1.5px solid #38bdf850; }
+  .status-dot.status-error { background: #47556922; color: #64748b; border: 1.5px solid #47556950; }
+
+  .result-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .result-header-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
 
   .check-name {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--text);
-    white-space: nowrap;
   }
 
   .sev-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
     font-size: 0.62rem;
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    padding: 0.15em 0.55em;
+    padding: 0.2em 0.6em;
     border-radius: 4px;
     flex-shrink: 0;
+    line-height: 1.4;
   }
-  .sev-critical { background: #f8717125; border: 1px solid #f8717150; color: #f87171; }
-  .sev-high     { background: #fb923c25; border: 1px solid #fb923c50; color: #fb923c; }
-  .sev-medium   { background: #fbbf2425; border: 1px solid #fbbf2450; color: #fbbf24; }
-  .sev-low      { background: #38bdf825; border: 1px solid #38bdf850; color: #38bdf8; }
-  .sev-info     { background: #64748b20; border: 1px solid #64748b40; color: #94a3b8; }
+  .sev-icon { font-size: 0.65em; }
+  .sev-critical { background: #f8717118; border: 1px solid #f8717155; color: #fca5a5; }
+  .sev-high     { background: #fb923c18; border: 1px solid #fb923c55; color: #fdba74; }
+  .sev-medium   { background: #fbbf2418; border: 1px solid #fbbf2455; color: #fde68a; }
+  .sev-low      { background: #38bdf818; border: 1px solid #38bdf855; color: #7dd3fc; }
+  .sev-info     { background: #64748b15; border: 1px solid #64748b40; color: #94a3b8; }
+  .sev-na       { background: #64748b10; border: 1px solid #64748b30; color: #64748b; }
 
   .check-finding {
-    font-size: 0.825rem;
+    font-size: 0.82rem;
     color: var(--text-dim);
-    flex: 1;
-    min-width: 160px;
+    line-height: 1.4;
   }
 
   .expand-arrow {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--text-muted);
     flex-shrink: 0;
-    margin-left: auto;
-    transition: transform 0.15s;
+    padding: 0.25rem;
   }
 
   .result-detail {
-    padding: 0 1rem 1rem 2.6rem;
+    padding: 0 1rem 1rem 3.25rem;
     border-top: 1px solid var(--border);
-    background: var(--bg);
+    background: color-mix(in srgb, var(--bg) 70%, var(--bg-card));
   }
 
   .detail-text {
     font-size: 0.82rem;
     color: var(--text-dim);
-    line-height: 1.65;
-    margin: 0.75rem 0 0;
+    line-height: 1.7;
+    margin: 0.85rem 0 0;
   }
 
   .remediation {
-    margin-top: 0.75rem;
+    margin-top: 0.85rem;
     font-size: 0.82rem;
     color: var(--text-dim);
     line-height: 1.65;
-    padding: 0.75rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    padding: 0.85rem 1rem;
+    background: #34d39908;
+    border: 1px solid #34d39925;
+    border-left: 3px solid #34d399;
     border-radius: 6px;
   }
 
   .remed-label {
+    display: block;
+    font-size: 0.68rem;
     font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: #34d399;
-    margin-right: 0.25rem;
+    margin-bottom: 0.4rem;
   }
+
+  /* Error banner inside expanded detail */
+  .error-banner {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    margin-top: 0.85rem;
+    padding: 0.85rem 1rem;
+    background: #47556910;
+    border: 1px solid #47556940;
+    border-left: 3px solid #64748b;
+    border-radius: 6px;
+  }
+  .error-banner-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #47556930;
+    color: #94a3b8;
+    font-size: 0.7rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+  }
+  .error-banner-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-bottom: 0.25rem;
+  }
+  .error-banner-body {
+    font-size: 0.78rem;
+    color: #64748b;
+    line-height: 1.55;
+  }
+
+  /* References */
+  .ref-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .ref-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-right: 0.25rem;
+    flex-shrink: 0;
+  }
+  .ref-link {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #818cf8;
+    background: #818cf810;
+    border: 1px solid #818cf825;
+    border-radius: 4px;
+    padding: 0.2em 0.6em;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .ref-link:hover { background: #818cf820; border-color: #818cf850; }
 
   /* Paid teaser */
   .paid-teaser {
@@ -782,7 +921,7 @@ const PAID_CHECK_PREVIEWS = [
     .btn-group { width: 100%; }
     .btn { flex: 1; justify-content: center; }
     .score-row { flex-direction: column; align-items: flex-start; }
-    .result-row { flex-wrap: wrap; }
-    .check-name { white-space: normal; }
+    .result-detail { padding-left: 1rem; }
+    .ref-row { flex-direction: column; align-items: flex-start; }
   }
 </style>

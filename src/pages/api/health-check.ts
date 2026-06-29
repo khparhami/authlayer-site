@@ -6,6 +6,8 @@ type Status = 'pass' | 'fail' | 'warn' | 'info' | 'error';
 type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 type Category = 'transport' | 'cookies' | 'headers' | 'email' | 'oauth' | 'exposure';
 
+interface Reference { label: string; url: string; }
+
 interface CheckResult {
   id: string;
   name: string;
@@ -15,7 +17,118 @@ interface CheckResult {
   finding: string;
   detail?: string;
   remediation?: string;
+  references?: Reference[];
+  errorReason?: string;
 }
+
+const REFS: Record<string, Reference[]> = {
+  ssl_valid: [
+    { label: 'RFC 8446 — TLS 1.3', url: 'https://tools.ietf.org/html/rfc8446' },
+    { label: 'NIST SP 800-52r2', url: 'https://csrc.nist.gov/pubs/sp/800/52/r2/final' },
+  ],
+  https_redirect: [
+    { label: 'OWASP TLS Cheat Sheet', url: 'https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html' },
+    { label: 'RFC 7231 — HTTP Redirects', url: 'https://tools.ietf.org/html/rfc7231#section-6.4' },
+  ],
+  hsts: [
+    { label: 'RFC 6797 — HSTS', url: 'https://tools.ietf.org/html/rfc6797' },
+    { label: 'HSTS Preload List', url: 'https://hstspreload.org' },
+    { label: 'MDN: Strict-Transport-Security', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security' },
+  ],
+  cookie_secure: [
+    { label: 'RFC 6265 — HTTP Cookies', url: 'https://tools.ietf.org/html/rfc6265' },
+    { label: 'OWASP Session Management', url: 'https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html' },
+  ],
+  spf_exists: [
+    { label: 'RFC 7208 — SPF', url: 'https://tools.ietf.org/html/rfc7208' },
+  ],
+  dmarc_exists: [
+    { label: 'RFC 7489 — DMARC', url: 'https://tools.ietf.org/html/rfc7489' },
+  ],
+  clickjacking: [
+    { label: 'OWASP Clickjacking Defence', url: 'https://cheatsheetseries.owasp.org/cheatsheets/Clickjacking_Defense_Cheat_Sheet.html' },
+    { label: 'MDN: X-Frame-Options', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options' },
+  ],
+  admin_exposure: [
+    { label: 'OWASP A05 — Security Misconfiguration', url: 'https://owasp.org/Top10/A05_2021-Security_Misconfiguration/' },
+  ],
+  cookie_samesite: [
+    { label: 'MDN: SameSite cookies', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#samesite_attribute' },
+    { label: 'OWASP CSRF Prevention', url: 'https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html' },
+  ],
+  cookie_prefixes: [
+    { label: 'MDN: Cookie prefixes', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#cookie_prefixes' },
+  ],
+  csp_quality: [
+    { label: 'MDN: Content-Security-Policy', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP' },
+    { label: 'OWASP CSP Cheat Sheet', url: 'https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html' },
+    { label: 'W3C CSP Level 3', url: 'https://www.w3.org/TR/CSP3/' },
+  ],
+  referrer_policy: [
+    { label: 'MDN: Referrer-Policy', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Referrer-Policy' },
+    { label: 'W3C Referrer Policy', url: 'https://www.w3.org/TR/referrer-policy/' },
+  ],
+  permissions_policy: [
+    { label: 'MDN: Permissions-Policy', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Permissions-Policy' },
+    { label: 'W3C Permissions Policy', url: 'https://www.w3.org/TR/permissions-policy/' },
+  ],
+  coop: [
+    { label: 'MDN: Cross-Origin-Opener-Policy', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy' },
+    { label: 'MDN: Cross-Origin-Resource-Policy', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cross-Origin-Resource-Policy' },
+  ],
+  oidc_discovery: [
+    { label: 'OpenID Connect Discovery 1.0', url: 'https://openid.net/specs/openid-connect-discovery-1_0.html' },
+  ],
+  pkce_support: [
+    { label: 'RFC 7636 — PKCE', url: 'https://tools.ietf.org/html/rfc7636' },
+    { label: 'OAuth 2.1 Draft', url: 'https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1' },
+  ],
+  grant_types: [
+    { label: 'OAuth 2.1 — Removed Flows', url: 'https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1#section-1.3' },
+    { label: 'RFC 6749 — OAuth 2.0', url: 'https://tools.ietf.org/html/rfc6749' },
+  ],
+  webauthn_support: [
+    { label: 'W3C Web Authentication', url: 'https://www.w3.org/TR/webauthn-3/' },
+    { label: 'FIDO2 Overview', url: 'https://fidoalliance.org/fido2/' },
+    { label: 'NIST SP 800-63B-4', url: 'https://pages.nist.gov/800-63-4/sp800-63b.html' },
+  ],
+  phishing_resistance: [
+    { label: 'W3C Web Authentication', url: 'https://www.w3.org/TR/webauthn-3/' },
+    { label: 'FIDO2 Overview', url: 'https://fidoalliance.org/fido2/' },
+    { label: 'NIST SP 800-63B-4 — AAL2', url: 'https://pages.nist.gov/800-63-4/sp800-63b.html#aal2' },
+  ],
+  dkim_record: [
+    { label: 'RFC 6376 — DKIM', url: 'https://tools.ietf.org/html/rfc6376' },
+  ],
+  dmarc_policy: [
+    { label: 'RFC 7489 — DMARC', url: 'https://tools.ietf.org/html/rfc7489' },
+    { label: 'DMARC.org Guide', url: 'https://dmarc.org/overview/' },
+  ],
+  spf_strength: [
+    { label: 'RFC 7208 — SPF Qualifiers', url: 'https://tools.ietf.org/html/rfc7208#section-4.6.2' },
+  ],
+  subdomain_surface: [
+    { label: 'OWASP — Subdomain Takeover', url: 'https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/10-Test_for_Subdomain_Takeover' },
+  ],
+  cors_headers: [
+    { label: 'MDN: CORS', url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS' },
+    { label: 'OWASP CORS Security', url: 'https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html#cross-origin-resource-sharing' },
+    { label: 'Fetch Living Standard', url: 'https://fetch.spec.whatwg.org/#http-cors-protocol' },
+  ],
+  security_txt: [
+    { label: 'RFC 9116 — security.txt', url: 'https://tools.ietf.org/html/rfc9116' },
+    { label: 'securitytxt.org Generator', url: 'https://securitytxt.org' },
+  ],
+  oauth_usage: [
+    { label: 'RFC 6749 — OAuth 2.0', url: 'https://tools.ietf.org/html/rfc6749' },
+    { label: 'OpenID Connect Core 1.0', url: 'https://openid.net/specs/openid-connect-core-1_0.html' },
+  ],
+  auth_endpoint_protection: [
+    { label: 'OWASP — Credential Stuffing', url: 'https://owasp.org/www-community/attacks/Credential_stuffing' },
+    { label: 'RFC 6585 — 429 Too Many Requests', url: 'https://tools.ietf.org/html/rfc6585' },
+    { label: 'OWASP Authentication Cheat Sheet', url: 'https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html' },
+  ],
+};
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -829,14 +942,20 @@ export const GET: APIRoute = async ({ url }) => {
   const settled = await Promise.allSettled(checks.map(fn => fn(domain)));
 
   const results: CheckResult[] = settled.map((r, i) => {
-    if (r.status === 'fulfilled') return r.value;
+    if (r.status === 'fulfilled') {
+      const result = r.value;
+      return { ...result, references: REFS[result.id] };
+    }
+    const id = checks[i].name.toLowerCase().replace(/\s+/g, '_');
     return {
-      id: checks[i].name.toLowerCase().replace(/\s+/g, '_'),
+      id,
       name: checks[i].name,
       category: 'exposure' as Category,
       status: 'error' as Status,
       severity: 'info' as Severity,
-      finding: 'Check failed to complete',
+      finding: 'Check threw an unexpected error',
+      errorReason: 'An internal error prevented this check from running. This is not a security finding.',
+      references: REFS[id],
     };
   });
 
