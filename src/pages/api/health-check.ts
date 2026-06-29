@@ -595,6 +595,188 @@ async function checkSecurityTxt(domain: string): Promise<CheckResult> {
   }
 }
 
+async function checkOAuthUsage(domain: string): Promise<CheckResult> {
+  const base: Omit<CheckResult, 'status' | 'finding'> = {
+    id: 'oauth_usage', name: 'OAuth / OIDC Usage', category: 'oauth', severity: 'info',
+    detail: 'Detecting whether the site uses OAuth 2.0 or OpenID Connect helps understand the overall authentication architecture. Sites using OAuth delegate identity decisions to an authorization server, which changes the attack surface relative to home-grown auth.',
+    remediation: 'If OAuth is in use, ensure you are using Authorization Code + PKCE (not implicit flow), validate state and nonce parameters, and bind tokens to the client that requested them.',
+  };
+  try {
+    const [discoveryRes, ...pageResponses] = await Promise.allSettled([
+      fetchWithTimeout(`https://${domain}/.well-known/openid-configuration`, {}, 5000),
+      fetchWithTimeout(`https://${domain}/`, {}, 6000),
+      fetchWithTimeout(`https://${domain}/login`, { redirect: 'manual' }, 5000),
+      fetchWithTimeout(`https://${domain}/signin`, { redirect: 'manual' }, 5000),
+    ]);
+
+    if (discoveryRes.status === 'fulfilled' && discoveryRes.value.ok) {
+      return { ...base, status: 'pass', finding: 'OIDC discovery endpoint found — site acts as or integrates an OAuth/OIDC authorization server' };
+    }
+
+    const oauthPatterns = /oauth|client_id|response_type=code|response_type=token|authorize\?|openid|oidc/i;
+    const socialPatterns = /sign.?in with|continue with|login with|connect with.*(google|github|microsoft|apple|facebook|twitter|slack)/i;
+
+    for (const r of pageResponses) {
+      if (r.status !== 'fulfilled') continue;
+      const text = await r.value.text().catch(() => '');
+      if (oauthPatterns.test(text)) return { ...base, status: 'pass', finding: 'OAuth-related parameters or endpoints detected in page content' };
+      if (socialPatterns.test(text)) return { ...base, status: 'pass', finding: 'Social/federated login options detected — OAuth delegation in use' };
+    }
+
+    return { ...base, status: 'info', finding: 'No OAuth or OIDC usage detected — may use session-based or custom authentication' };
+  } catch {
+    return { ...base, status: 'error', finding: 'Could not determine OAuth usage' };
+  }
+}
+
+const IDP_SIGNATURES: Array<{ name: string; patterns: RegExp[] }> = [
+  { name: 'Auth0',             patterns: [/cdn\.auth0\.com|auth0\.js|\.auth0\.com/i] },
+  { name: 'Okta',              patterns: [/\.okta\.com|\.okta-emea\.com|okta-auth-js|okta-core/i] },
+  { name: 'Microsoft Entra / Azure AD', patterns: [/login\.microsoftonline\.com|aadcdn\.msftauth|msal\.js|\.b2clogin\.com/i] },
+  { name: 'Google Identity',   patterns: [/accounts\.google\.com|gsi\/client|google-signin|accounts\.google/i] },
+  { name: 'AWS Cognito',       patterns: [/cognito-idp\.|amazoncognito\.com|amazon-cognito/i] },
+  { name: 'Ping Identity / PingOne', patterns: [/\.pingone\.com|\.pingidentity\.com|\.ping\.com/i] },
+  { name: 'OneLogin',          patterns: [/\.onelogin\.com/i] },
+  { name: 'Keycloak',          patterns: [/\/auth\/realms\/|keycloak\.js|keycloak/i] },
+  { name: 'Firebase Auth',     patterns: [/identitytoolkit\.googleapis\.com|firebaseapp\.com\/__|firebase-auth/i] },
+  { name: 'Cloudflare Access', patterns: [/cloudflareaccess\.com/i] },
+  { name: 'ForgeRock / PingAM',patterns: [/forgerock\.com|\.forgerock\.io|openam/i] },
+  { name: 'Salesforce Identity', patterns: [/salesforce\.com\/services\/auth|salesforce-identity/i] },
+  { name: 'WorkOS',            patterns: [/workos\.com|authkit\.com/i] },
+  { name: 'Clerk',             patterns: [/clerk\.dev|clerk\.com|\.clerk\.accounts/i] },
+  { name: 'Stytch',            patterns: [/stytch\.com/i] },
+  { name: 'Passage (1Password)', patterns: [/passage\.id|passageidentity\.com/i] },
+];
+
+async function checkIdpDetection(domain: string): Promise<CheckResult> {
+  const base: Omit<CheckResult, 'status' | 'finding'> = {
+    id: 'idp_detection', name: 'Identity Provider Detection', category: 'oauth', severity: 'info',
+    detail: 'Identifying the identity provider in use helps understand the authentication architecture, dependency chain, and where to direct security configuration effort. It also surfaces whether a well-maintained hosted IdP is in use vs a custom implementation.',
+    remediation: 'No action required from detection alone. Ensure your IdP is on a supported version, MFA enforcement is configured, and admin access to the IdP console itself is protected with phishing-resistant authentication.',
+  };
+  try {
+    const pages = await Promise.allSettled([
+      fetchWithTimeout(`https://${domain}/`, {}, 6000).then(r => r.text()),
+      fetchWithTimeout(`https://${domain}/login`, { redirect: 'manual' }, 5000).then(r => r.text()),
+      fetchWithTimeout(`https://${domain}/signin`, { redirect: 'manual' }, 5000).then(r => r.text()),
+    ]);
+
+    const corpus = pages
+      .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+      .map(r => r.value)
+      .join('\n');
+
+    // Also check OIDC issuer for IdP hints
+    let oidcIssuer = '';
+    try {
+      const disc = await fetchWithTimeout(`https://${domain}/.well-known/openid-configuration`, {}, 4000);
+      if (disc.ok) {
+        const meta = await disc.json() as { issuer?: string };
+        oidcIssuer = meta.issuer ?? '';
+      }
+    } catch { /* skip */ }
+
+    const haystack = corpus + '\n' + oidcIssuer;
+    const detected: string[] = [];
+
+    for (const idp of IDP_SIGNATURES) {
+      if (idp.patterns.some(p => p.test(haystack))) {
+        detected.push(idp.name);
+      }
+    }
+
+    if (detected.length === 0) {
+      return { ...base, status: 'info', finding: 'No known identity provider fingerprint detected — may use a custom or less common IdP' };
+    }
+    return { ...base, status: 'pass', finding: `Identity provider detected: ${detected.join(', ')}` };
+  } catch {
+    return { ...base, status: 'error', finding: 'Could not scan for identity provider fingerprints' };
+  }
+}
+
+async function checkPhishingResistance(domain: string): Promise<CheckResult> {
+  const base: Omit<CheckResult, 'status' | 'finding'> = {
+    id: 'phishing_resistance', name: 'Phishing-Resistant Authentication', category: 'oauth', severity: 'info',
+    detail: 'Phishing-resistant authentication (passkeys, FIDO2 hardware keys) binds the credential to the origin domain at the cryptographic level. A passkey issued for app.example.com cannot be used on fake-app.example.com — the browser enforces this automatically. NIST SP 800-63-4 requires phishing-resistant MFA for AAL3 and endorses it for AAL2.',
+    remediation: 'Implement WebAuthn via the browser Credential Management API or a hosted IdP with native passkey support (Okta, Auth0, Microsoft Entra, Google Identity). Libraries: SimpleWebAuthn (Node), py_webauthn (Python). Publish /.well-known/webauthn with your allowed origins.',
+  };
+  try {
+    const [wellKnown, ...pages] = await Promise.allSettled([
+      fetchWithTimeout(`https://${domain}/.well-known/webauthn`, {}, 5000),
+      fetchWithTimeout(`https://${domain}/login`, { redirect: 'manual' }, 6000).then(r => r.text()),
+      fetchWithTimeout(`https://${domain}/signin`, { redirect: 'manual' }, 5000).then(r => r.text()),
+      fetchWithTimeout(`https://${domain}/`, {}, 6000).then(r => r.text()),
+    ]);
+
+    const wellKnownFound = wellKnown.status === 'fulfilled' && wellKnown.value.ok;
+
+    const corpus = pages
+      .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+      .map(r => r.value)
+      .join('\n');
+
+    const webauthnApi = /navigator\.credentials|PublicKeyCredential|webauthn|authenticatorAttachment/i.test(corpus);
+    const passkeyUi   = /passkey|use your fingerprint|face id|touch id|security key|sign in with a passkey|biometric/i.test(corpus);
+
+    const signals: string[] = [];
+    if (wellKnownFound) signals.push('/.well-known/webauthn endpoint');
+    if (webauthnApi)    signals.push('WebAuthn API usage in page scripts');
+    if (passkeyUi)      signals.push('passkey/biometric UI language detected');
+
+    if (signals.length >= 2) return { ...base, status: 'pass', finding: `Strong phishing-resistant auth signals: ${signals.join(', ')}` };
+    if (signals.length === 1) return { ...base, status: 'warn', finding: `Partial signal — ${signals[0]} detected but not confirmed end-to-end` };
+    return { ...base, status: 'info', finding: 'No passkey or WebAuthn signals detected — phishing-resistant authentication may not be offered' };
+  } catch {
+    return { ...base, status: 'error', finding: 'Could not evaluate phishing-resistant authentication signals' };
+  }
+}
+
+async function checkAuthEndpointProtection(domain: string): Promise<CheckResult> {
+  const base: Omit<CheckResult, 'status' | 'finding'> = {
+    id: 'auth_endpoint_protection', name: 'Auth Endpoint Protection', category: 'exposure', severity: 'high',
+    detail: 'Authentication endpoints (/login, /signin, /api/auth) are primary targets for credential stuffing and brute-force attacks. Rate limiting headers (X-RateLimit-*, Retry-After) and bot protection signals (CAPTCHA, cf-mitigated) indicate active defences.',
+    remediation: 'Enforce rate limiting on all login and password-reset endpoints. Use Cloudflare Rate Limiting rules, or middleware like express-rate-limit. Return 429 Too Many Requests after threshold. Add CAPTCHA (Turnstile, hCaptcha) as a second layer. Log and alert on repeated failures from the same IP.',
+  };
+  const authPaths = ['/login', '/signin', '/auth', '/api/auth/login', '/api/login', '/account/login'];
+  try {
+    const responses = await Promise.allSettled(
+      authPaths.map(p =>
+        fetchWithTimeout(`https://${domain}${p}`, { redirect: 'manual' }, 5000)
+          .then(r => ({
+            path: p,
+            status: r.status,
+            rateLimitHeaders: [
+              r.headers.get('x-ratelimit-limit'),
+              r.headers.get('x-ratelimit-remaining'),
+              r.headers.get('ratelimit-limit'),
+              r.headers.get('retry-after'),
+              r.headers.get('cf-mitigated'),
+            ].filter(Boolean),
+          }))
+      )
+    );
+
+    const live = responses.filter((r): r is PromiseFulfilledResult<{ path: string; status: number; rateLimitHeaders: string[] }> =>
+      r.status === 'fulfilled' && (r.value.status === 200 || r.value.status === 302 || r.value.status === 301)
+    ).map(r => r.value);
+
+    if (live.length === 0) {
+      return { ...base, status: 'info', finding: 'No accessible auth endpoints found at common paths' };
+    }
+
+    const protected_ = live.filter(r => r.rateLimitHeaders.length > 0);
+    if (protected_.length > 0) {
+      const paths = protected_.map(r => r.path).join(', ');
+      return { ...base, status: 'pass', finding: `Rate limiting headers detected on auth endpoint(s): ${paths}` };
+    }
+
+    const livePaths = live.map(r => r.path).join(', ');
+    return { ...base, status: 'warn', finding: `Auth endpoint(s) accessible at ${livePaths} but no rate limiting headers detected` };
+  } catch {
+    return { ...base, status: 'error', finding: 'Could not evaluate auth endpoint protection' };
+  }
+}
+
 // ─── route handler ───────────────────────────────────────────────────────────
 
 const FREE_CHECKS = [
@@ -602,6 +784,8 @@ const FREE_CHECKS = [
   checkHttpsRedirect,
   checkHsts,
   checkCookieSecurity,
+  checkOAuthUsage,
+  checkIdpDetection,
   checkSpfExists,
   checkDmarcExists,
   checkClickjacking,
@@ -619,7 +803,8 @@ const PAID_CHECKS = [
   checkOidcDiscovery,
   checkPkceSupport,
   checkGrantTypes,
-  checkWebauthnSupport,
+  checkPhishingResistance,
+  checkAuthEndpointProtection,
   checkDkimRecord,
   checkDmarcPolicy,
   checkSpfStrength,
