@@ -610,18 +610,6 @@ const PAID_CHECK_PREVIEWS = [
     letter-spacing: -0.01em;
   }
   .summary-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.1rem; }
-  .chip {
-    font-size: 0.73rem;
-    font-weight: 700;
-    padding: 0.3em 0.85em;
-    border-radius: 9999px;
-    letter-spacing: 0.03em;
-  }
-  .chip-pass { background: rgba(52,211,153,0.15);  border: 1px solid rgba(52,211,153,0.35);  color: #6ee7b7; }
-  .chip-warn { background: rgba(251,191,36,0.15);  border: 1px solid rgba(251,191,36,0.35);  color: #fcd34d; }
-  .chip-fail { background: rgba(248,113,113,0.15); border: 1px solid rgba(248,113,113,0.35); color: #fca5a5; }
-  .chip-err  { background: rgba(100,116,139,0.15); border: 1px solid rgba(100,116,139,0.35); color: #94a3b8; }
-
   .report-badge {
     font-size: 0.68rem;
     font-weight: 700;
@@ -631,6 +619,29 @@ const PAID_CHECK_PREVIEWS = [
     border-radius: 5px;
     align-self: flex-start;
   }
+
+  /* ─── Mobile (static template elements only) ─────── */
+  @media (max-width: 768px) {
+    .input-row    { flex-direction: column; }
+    .domain-field { width: 100%; }
+    .btn-group    { width: 100%; }
+    .btn          { flex: 1; justify-content: center; }
+    .score-row    { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
+  }
+</style>
+
+<!-- Styles for elements created dynamically by JavaScript must be global
+     because JS-created DOM nodes don't receive Astro's data-astro-cid attribute -->
+<style is:global>
+
+  /* ─── Summary chips (innerHTML) ─────────────────── */
+  .chip { font-size: 0.73rem; font-weight: 700; padding: 0.3em 0.85em; border-radius: 9999px; letter-spacing: 0.03em; }
+  .chip-pass { background: rgba(52,211,153,0.15);  border: 1px solid rgba(52,211,153,0.35);  color: #6ee7b7; }
+  .chip-warn { background: rgba(251,191,36,0.15);  border: 1px solid rgba(251,191,36,0.35);  color: #fcd34d; }
+  .chip-fail { background: rgba(248,113,113,0.15); border: 1px solid rgba(248,113,113,0.35); color: #fca5a5; }
+  .chip-err  { background: rgba(100,116,139,0.15); border: 1px solid rgba(100,116,139,0.35); color: #94a3b8; }
+
+  /* ─── Report badge variants (className set by JS) ── */
   .badge-free { background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.30); color: #7dd3fc; }
   .badge-paid { background: rgba(129,140,248,0.15); border: 1px solid rgba(129,140,248,0.30); color: #a5b4fc; }
 
@@ -1016,13 +1027,8 @@ const PAID_CHECK_PREVIEWS = [
     white-space: nowrap;
   }
 
-  /* ─── Mobile ─────────────────────────────────────── */
+  /* ─── Mobile (dynamic elements) ─────────────────── */
   @media (max-width: 768px) {
-    .input-row    { flex-direction: column; }
-    .domain-field { width: 100%; }
-    .btn-group    { width: 100%; }
-    .btn          { flex: 1; justify-content: center; }
-    .score-row    { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
     .result-detail { padding-left: 1.25rem; }
     .risk-header  { padding: 0.85rem 1rem; }
     .result-row   { padding: 0.9rem 1rem; }
