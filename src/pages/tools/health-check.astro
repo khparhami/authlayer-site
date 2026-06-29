@@ -635,22 +635,22 @@ const PAID_CHECK_PREVIEWS = [
   .badge-paid { background: rgba(129,140,248,0.15); border: 1px solid rgba(129,140,248,0.30); color: #a5b4fc; }
 
   /* ─── Results list ───────────────────────────────── */
-  .results-list { display: flex; flex-direction: column; gap: 1.75rem; }
+  .results-list { display: flex; flex-direction: column; gap: 2rem; }
 
   /* ─── Risk section block ─────────────────────────── */
   .risk-section {
     border-radius: 12px;
     overflow: hidden;
-    border: 1.5px solid;
+    border: 2px solid;
   }
 
-  /* Section border colors */
-  .risk-section-critical { border-color: rgba(239,68,68,0.50); }
-  .risk-section-high     { border-color: rgba(249,115,22,0.50); }
-  .risk-section-medium   { border-color: rgba(234,179,8,0.45); }
-  .risk-section-low      { border-color: rgba(59,130,246,0.45); }
-  .risk-section-pass     { border-color: rgba(34,197,94,0.40); }
-  .risk-section-na       { border-color: rgba(100,116,139,0.30); }
+  /* Section border colors — high opacity so they're clearly visible on dark bg */
+  .risk-section-critical { border-color: rgba(239,68,68,0.80); }
+  .risk-section-high     { border-color: rgba(249,115,22,0.75); }
+  .risk-section-medium   { border-color: rgba(234,179,8,0.70); }
+  .risk-section-low      { border-color: rgba(59,130,246,0.65); }
+  .risk-section-pass     { border-color: rgba(34,197,94,0.60); }
+  .risk-section-na       { border-color: rgba(100,116,139,0.45); }
 
   /* Section header band */
   .risk-header {
@@ -658,31 +658,32 @@ const PAID_CHECK_PREVIEWS = [
     align-items: center;
     gap: 0.9rem;
     padding: 0.95rem 1.25rem;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid rgba(255,255,255,0.10);
   }
 
+  /* Header gradient backgrounds — much more opaque so color is obvious */
   .risk-critical {
-    background: linear-gradient(90deg, rgba(239,68,68,0.30) 0%, rgba(239,68,68,0.15) 100%);
+    background: linear-gradient(90deg, rgba(239,68,68,0.55) 0%, rgba(239,68,68,0.30) 100%);
     color: #fca5a5;
   }
   .risk-high {
-    background: linear-gradient(90deg, rgba(249,115,22,0.30) 0%, rgba(249,115,22,0.15) 100%);
+    background: linear-gradient(90deg, rgba(249,115,22,0.55) 0%, rgba(249,115,22,0.28) 100%);
     color: #fdba74;
   }
   .risk-medium {
-    background: linear-gradient(90deg, rgba(234,179,8,0.28) 0%, rgba(234,179,8,0.12) 100%);
+    background: linear-gradient(90deg, rgba(234,179,8,0.52) 0%, rgba(234,179,8,0.25) 100%);
     color: #fde68a;
   }
   .risk-low {
-    background: linear-gradient(90deg, rgba(59,130,246,0.28) 0%, rgba(59,130,246,0.12) 100%);
+    background: linear-gradient(90deg, rgba(59,130,246,0.52) 0%, rgba(59,130,246,0.25) 100%);
     color: #93c5fd;
   }
   .risk-pass {
-    background: linear-gradient(90deg, rgba(34,197,94,0.22) 0%, rgba(34,197,94,0.10) 100%);
+    background: linear-gradient(90deg, rgba(34,197,94,0.48) 0%, rgba(34,197,94,0.22) 100%);
     color: #86efac;
   }
   .risk-na {
-    background: linear-gradient(90deg, rgba(100,116,139,0.20) 0%, rgba(100,116,139,0.08) 100%);
+    background: linear-gradient(90deg, rgba(100,116,139,0.40) 0%, rgba(100,116,139,0.18) 100%);
     color: #94a3b8;
   }
 
@@ -697,12 +698,12 @@ const PAID_CHECK_PREVIEWS = [
     font-weight: 900;
     flex-shrink: 0;
   }
-  .risk-critical .risk-hicon { background: rgba(239,68,68,0.35); color: #f87171; }
-  .risk-high     .risk-hicon { background: rgba(249,115,22,0.35); color: #fb923c; }
-  .risk-medium   .risk-hicon { background: rgba(234,179,8,0.30);  color: #eab308; }
-  .risk-low      .risk-hicon { background: rgba(59,130,246,0.30); color: #60a5fa; }
-  .risk-pass     .risk-hicon { background: rgba(34,197,94,0.25);  color: #4ade80; }
-  .risk-na       .risk-hicon { background: rgba(100,116,139,0.25); color: #94a3b8; }
+  .risk-critical .risk-hicon { background: rgba(239,68,68,0.55); color: #fca5a5; }
+  .risk-high     .risk-hicon { background: rgba(249,115,22,0.55); color: #fdba74; }
+  .risk-medium   .risk-hicon { background: rgba(234,179,8,0.50);  color: #fde047; }
+  .risk-low      .risk-hicon { background: rgba(59,130,246,0.50); color: #93c5fd; }
+  .risk-pass     .risk-hicon { background: rgba(34,197,94,0.45);  color: #86efac; }
+  .risk-na       .risk-hicon { background: rgba(100,116,139,0.40); color: #cbd5e1; }
 
   .risk-hlabel {
     font-size: 0.75rem;
@@ -719,34 +720,39 @@ const PAID_CHECK_PREVIEWS = [
     border-radius: 9999px;
     letter-spacing: 0.02em;
   }
-  .risk-critical .risk-hcount { background: rgba(239,68,68,0.30); color: #fca5a5; }
-  .risk-high     .risk-hcount { background: rgba(249,115,22,0.30); color: #fdba74; }
-  .risk-medium   .risk-hcount { background: rgba(234,179,8,0.25);  color: #fde68a; }
-  .risk-low      .risk-hcount { background: rgba(59,130,246,0.25); color: #93c5fd; }
-  .risk-pass     .risk-hcount { background: rgba(34,197,94,0.22);  color: #86efac; }
-  .risk-na       .risk-hcount { background: rgba(100,116,139,0.22); color: #94a3b8; }
+  .risk-critical .risk-hcount { background: rgba(239,68,68,0.50); color: #fecaca; }
+  .risk-high     .risk-hcount { background: rgba(249,115,22,0.50); color: #fed7aa; }
+  .risk-medium   .risk-hcount { background: rgba(234,179,8,0.45);  color: #fef08a; }
+  .risk-low      .risk-hcount { background: rgba(59,130,246,0.45); color: #bfdbfe; }
+  .risk-pass     .risk-hcount { background: rgba(34,197,94,0.42);  color: #bbf7d0; }
+  .risk-na       .risk-hcount { background: rgba(100,116,139,0.38); color: #e2e8f0; }
 
-  /* Cards wrapper */
-  .risk-cards { background: var(--bg-card); }
+  /* Cards wrapper — subtle per-color tint so sections feel distinct */
+  .risk-cards-critical { background: rgba(239,68,68,0.05);  }
+  .risk-cards-high     { background: rgba(249,115,22,0.05); }
+  .risk-cards-medium   { background: rgba(234,179,8,0.04);  }
+  .risk-cards-low      { background: rgba(59,130,246,0.05); }
+  .risk-cards-pass     { background: rgba(34,197,94,0.04);  }
+  .risk-cards-na       { background: rgba(100,116,139,0.04); }
 
   /* Individual result card */
   .result-card {
     background: transparent;
     border: none;
-    border-top: 1px solid rgba(255,255,255,0.05);
+    border-top: 1px solid rgba(255,255,255,0.06);
     overflow: hidden;
     transition: background 0.12s;
   }
   .result-card:first-child { border-top: none; }
   .result-card.expanded { background: rgba(0,0,0,0.25); }
 
-  /* Left accent stripe on cards per section */
-  .risk-cards-critical .result-card { border-left: 3px solid rgba(239,68,68,0.55); }
-  .risk-cards-high     .result-card { border-left: 3px solid rgba(249,115,22,0.55); }
-  .risk-cards-medium   .result-card { border-left: 3px solid rgba(234,179,8,0.50); }
-  .risk-cards-low      .result-card { border-left: 3px solid rgba(59,130,246,0.50); }
-  .risk-cards-pass     .result-card { border-left: 3px solid rgba(34,197,94,0.45); }
-  .risk-cards-na       .result-card { border-left: 3px solid rgba(100,116,139,0.30); }
+  /* Left accent stripe — vivid so it's unmissable */
+  .risk-cards-critical .result-card { border-left: 3px solid rgba(239,68,68,0.85); }
+  .risk-cards-high     .result-card { border-left: 3px solid rgba(249,115,22,0.80); }
+  .risk-cards-medium   .result-card { border-left: 3px solid rgba(234,179,8,0.75); }
+  .risk-cards-low      .result-card { border-left: 3px solid rgba(59,130,246,0.75); }
+  .risk-cards-pass     .result-card { border-left: 3px solid rgba(34,197,94,0.70); }
+  .risk-cards-na       .result-card { border-left: 3px solid rgba(100,116,139,0.50); }
 
   /* Card row */
   .result-row {
