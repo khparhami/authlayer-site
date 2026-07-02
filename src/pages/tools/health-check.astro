@@ -42,12 +42,12 @@ const PAID_CHECK_PREVIEWS = [
       <div class="input-card">
         <div class="input-row">
           <div class="domain-field">
-            <label for="domain-input" class="sr-only">Domain to scan</label>
+            <label for="domain-input" class="sr-only">Domain or login URL to scan</label>
             <input
               id="domain-input"
               type="text"
               class="domain-input"
-              placeholder="example.com"
+              placeholder="example.com or https://login.example.com/signin"
               autocomplete="off"
               spellcheck="false"
               autocorrect="off"
@@ -62,14 +62,14 @@ const PAID_CHECK_PREVIEWS = [
             </button>
           </div>
         </div>
-        <p id="input-error" class="input-error" hidden>Enter a valid domain name (e.g. example.com)</p>
+        <p id="input-error" class="input-error" hidden>Enter a domain (e.g. example.com) or a full login URL (e.g. https://login.example.com/signin)</p>
       </div>
 
       <div id="results-area" class="results-area">
 
         <div id="state-empty" class="state-empty">
           <div class="empty-icon">⬡</div>
-          <p>Enter a domain above to scan its identity security posture.</p>
+          <p>Enter a domain or login URL above to scan its identity security posture.</p>
         </div>
 
         <div id="state-loading" class="state-loading" hidden>
@@ -361,9 +361,22 @@ const PAID_CHECK_PREVIEWS = [
       .replace(/"/g, '&quot;');
   }
 
+  function parseInput(raw) {
+    const trimmed = raw.trim();
+    if (/^https?:\/\//i.test(trimmed)) {
+      try {
+        const u = new URL(trimmed.startsWith('http://') ? trimmed.replace(/^http:\/\//i, 'https://') : trimmed);
+        return { domain: u.hostname.toLowerCase(), authUrl: u.href };
+      } catch {
+        return { domain: null, authUrl: null };
+      }
+    }
+    const domain = sanitizeDomainClient(trimmed);
+    return { domain, authUrl: null };
+  }
+
   async function runReport(reportType) {
-    const raw = domainInput.value;
-    const domain = sanitizeDomainClient(raw);
+    const { domain, authUrl } = parseInput(domainInput.value);
 
     inputError.hidden = true;
     if (!isValidDomain(domain)) {
@@ -373,12 +386,14 @@ const PAID_CHECK_PREVIEWS = [
     }
 
     setState('loading');
-    loadingDomain.textContent = domain;
+    loadingDomain.textContent = authUrl ?? domain;
     btnFree.disabled = true;
     btnPaid.disabled = true;
 
     try {
-      const res = await fetch(`/api/health-check?domain=${encodeURIComponent(domain)}&report=${reportType}`);
+      let apiUrl = `/api/health-check?domain=${encodeURIComponent(domain)}&report=${reportType}`;
+      if (authUrl) apiUrl += `&authUrl=${encodeURIComponent(authUrl)}`;
+      const res = await fetch(apiUrl);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Scan failed');
       buildResults(data);
@@ -398,11 +413,6 @@ const PAID_CHECK_PREVIEWS = [
 
   domainInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') runReport('free');
-  });
-
-  domainInput.addEventListener('input', () => {
-    const raw = domainInput.value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    if (raw) domainInput.value = raw;
   });
 </script>
 

@@ -155,29 +155,39 @@ async function dnsQuery(name: string, type: string): Promise<DnsResponse> {
   return res.json() as Promise<DnsResponse>;
 }
 
+const BLOCKED_HOSTS = [
+  /^localhost$/,
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\./,
+  /\.local$/,
+  /^::1$/,
+];
+
 function sanitizeDomain(input: string): string | null {
   if (!input) return null;
   let d = input.trim().toLowerCase();
   d = d.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   if (!d) return null;
-
-  const validDomain = /^[a-z0-9]([a-z0-9\-.]{0,251}[a-z0-9])?$/.test(d);
-  if (!validDomain) return null;
-
-  // Block SSRF targets
-  const blocked = [
-    /^localhost$/,
-    /^127\./,
-    /^10\./,
-    /^172\.(1[6-9]|2\d|3[01])\./,
-    /^192\.168\./,
-    /^169\.254\./,
-    /^0\./,
-    /\.local$/,
-    /^::1$/,
-  ];
-  if (blocked.some(r => r.test(d))) return null;
+  if (!/^[a-z0-9]([a-z0-9\-.]{0,251}[a-z0-9])?$/.test(d)) return null;
+  if (BLOCKED_HOSTS.some(r => r.test(d))) return null;
   return d;
+}
+
+function parseAuthUrl(input: string | null): string | null {
+  if (!input) return null;
+  const raw = input.trim();
+  try {
+    const u = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+    if (u.protocol !== 'https:') return null;
+    if (BLOCKED_HOSTS.some(r => r.test(u.hostname))) return null;
+    return u.href;
+  } catch {
+    return null;
+  }
 }
 
 function calculateScore(results: CheckResult[]): number {
@@ -263,16 +273,17 @@ async function checkHsts(domain: string): Promise<CheckResult> {
   }
 }
 
-async function checkCookieSecurity(domain: string): Promise<CheckResult> {
+async function checkCookieSecurity(domain: string, authUrl: string | null = null): Promise<CheckResult> {
   const base: Omit<CheckResult, 'status' | 'finding'> = {
     id: 'cookie_secure', name: 'Session Cookie Flags', category: 'cookies', severity: 'high',
     detail: 'Session cookies must carry `Secure` (HTTPS-only) and `HttpOnly` (no JS access) attributes. Missing `Secure` means cookies can be sent over HTTP. Missing `HttpOnly` exposes them to XSS attacks.',
     remediation: 'Set all session cookies with `Secure; HttpOnly; SameSite=Lax`. In Express: `res.cookie(name, value, { secure: true, httpOnly: true, sameSite: \'lax\' })`. In Django: `SESSION_COOKIE_SECURE=True`, `SESSION_COOKIE_HTTPONLY=True`.',
   };
-  const paths = ['/', '/login', '/signin', '/auth', '/account/login'];
+  const guessedUrls = ['/', '/login', '/signin', '/auth', '/account/login'].map(p => `https://${domain}${p}`);
+  const urlsToCheck = authUrl ? [authUrl, ...guessedUrls] : guessedUrls;
   try {
     const responses = await Promise.allSettled(
-      paths.map(p => fetchWithTimeout(`https://${domain}${p}`, { redirect: 'manual' }, 6000))
+      urlsToCheck.map(u => fetchWithTimeout(u, { redirect: 'manual' }, 6000))
     );
     const allCookies: string[] = [];
     for (const r of responses) {
@@ -390,16 +401,17 @@ async function checkAdminExposure(domain: string): Promise<CheckResult> {
 
 // ─── paid checks ────────────────────────────────────────────────────────────
 
-async function checkCookieSameSite(domain: string): Promise<CheckResult> {
+async function checkCookieSameSite(domain: string, authUrl: string | null = null): Promise<CheckResult> {
   const base: Omit<CheckResult, 'status' | 'finding'> = {
     id: 'cookie_samesite', name: 'SameSite Cookie Policy', category: 'cookies', severity: 'high',
     detail: 'SameSite=None without Strict/Lax allows cross-site requests to include the cookie, enabling CSRF attacks. SameSite=Lax is the modern default and prevents most CSRF vectors while keeping OAuth flows working.',
     remediation: 'Set SameSite=Lax on session cookies (default in modern browsers). Only use SameSite=None with Secure if you specifically need cross-site cookie access (e.g. embedded third-party flows).',
   };
-  const paths = ['/', '/login', '/signin'];
+  const guessedUrls = ['/', '/login', '/signin'].map(p => `https://${domain}${p}`);
+  const urlsToCheck = authUrl ? [authUrl, ...guessedUrls] : guessedUrls;
   try {
     const responses = await Promise.allSettled(
-      paths.map(p => fetchWithTimeout(`https://${domain}${p}`, { redirect: 'manual' }, 6000))
+      urlsToCheck.map(u => fetchWithTimeout(u, { redirect: 'manual' }, 6000))
     );
     const allCookies: string[] = [];
     for (const r of responses) {
@@ -425,14 +437,15 @@ async function checkCookieSameSite(domain: string): Promise<CheckResult> {
   }
 }
 
-async function checkCookiePrefixes(domain: string): Promise<CheckResult> {
+async function checkCookiePrefixes(domain: string, authUrl: string | null = null): Promise<CheckResult> {
   const base: Omit<CheckResult, 'status' | 'finding'> = {
     id: 'cookie_prefixes', name: 'Secure Cookie Prefixes', category: 'cookies', severity: 'low',
     detail: '__Secure- prefix requires the cookie to be set over HTTPS and have the Secure flag. __Host- additionally requires no Domain attribute and Path=/, preventing subdomain fixation attacks.',
     remediation: 'Rename session cookies to use __Host- prefix: `Set-Cookie: __Host-session=value; Secure; HttpOnly; SameSite=Lax; Path=/`. This is a defence-in-depth measure, not a standalone fix.',
   };
   try {
-    const res = await fetchWithTimeout(`https://${domain}/`, { redirect: 'manual' }, 6000);
+    const urlToCheck = authUrl ?? `https://${domain}/`;
+    const res = await fetchWithTimeout(urlToCheck, { redirect: 'manual' }, 6000);
     const cookies = res.headers.getSetCookie?.() ?? [];
     if (cookies.length === 0) return { ...base, status: 'info', finding: 'No cookies found on main page to evaluate' };
     const prefixed = cookies.filter(c => c.startsWith('__Secure-') || c.startsWith('__Host-'));
@@ -708,18 +721,22 @@ async function checkSecurityTxt(domain: string): Promise<CheckResult> {
   }
 }
 
-async function checkOAuthUsage(domain: string): Promise<CheckResult> {
+async function checkOAuthUsage(domain: string, authUrl: string | null = null): Promise<CheckResult> {
   const base: Omit<CheckResult, 'status' | 'finding'> = {
     id: 'oauth_usage', name: 'OAuth / OIDC Usage', category: 'oauth', severity: 'info',
     detail: 'Detecting whether the site uses OAuth 2.0 or OpenID Connect helps understand the overall authentication architecture. Sites using OAuth delegate identity decisions to an authorization server, which changes the attack surface relative to home-grown auth.',
     remediation: 'If OAuth is in use, ensure you are using Authorization Code + PKCE (not implicit flow), validate state and nonce parameters, and bind tokens to the client that requested them.',
   };
   try {
+    const pageUrls = [
+      `https://${domain}/`,
+      `https://${domain}/login`,
+      `https://${domain}/signin`,
+      ...(authUrl ? [authUrl] : []),
+    ];
     const [discoveryRes, ...pageResponses] = await Promise.allSettled([
       fetchWithTimeout(`https://${domain}/.well-known/openid-configuration`, {}, 5000),
-      fetchWithTimeout(`https://${domain}/`, {}, 6000),
-      fetchWithTimeout(`https://${domain}/login`, { redirect: 'manual' }, 5000),
-      fetchWithTimeout(`https://${domain}/signin`, { redirect: 'manual' }, 5000),
+      ...pageUrls.map(u => fetchWithTimeout(u, { redirect: 'manual' }, 5000)),
     ]);
 
     if (discoveryRes.status === 'fulfilled' && discoveryRes.value.ok) {
@@ -761,18 +778,22 @@ const IDP_SIGNATURES: Array<{ name: string; patterns: RegExp[] }> = [
   { name: 'Passage (1Password)', patterns: [/passage\.id|passageidentity\.com/i] },
 ];
 
-async function checkIdpDetection(domain: string): Promise<CheckResult> {
+async function checkIdpDetection(domain: string, authUrl: string | null = null): Promise<CheckResult> {
   const base: Omit<CheckResult, 'status' | 'finding'> = {
     id: 'idp_detection', name: 'Identity Provider Detection', category: 'oauth', severity: 'info',
     detail: 'Identifying the identity provider in use helps understand the authentication architecture, dependency chain, and where to direct security configuration effort. It also surfaces whether a well-maintained hosted IdP is in use vs a custom implementation.',
     remediation: 'No action required from detection alone. Ensure your IdP is on a supported version, MFA enforcement is configured, and admin access to the IdP console itself is protected with phishing-resistant authentication.',
   };
   try {
-    const pages = await Promise.allSettled([
-      fetchWithTimeout(`https://${domain}/`, {}, 6000).then(r => r.text()),
-      fetchWithTimeout(`https://${domain}/login`, { redirect: 'manual' }, 5000).then(r => r.text()),
-      fetchWithTimeout(`https://${domain}/signin`, { redirect: 'manual' }, 5000).then(r => r.text()),
-    ]);
+    const pageUrls = [
+      ...(authUrl ? [authUrl] : []),  // explicit login URL takes priority
+      `https://${domain}/`,
+      `https://${domain}/login`,
+      `https://${domain}/signin`,
+    ];
+    const pages = await Promise.allSettled(
+      pageUrls.map(u => fetchWithTimeout(u, { redirect: 'manual' }, 6000).then(r => r.text()))
+    );
 
     const corpus = pages
       .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
@@ -807,18 +828,22 @@ async function checkIdpDetection(domain: string): Promise<CheckResult> {
   }
 }
 
-async function checkPhishingResistance(domain: string): Promise<CheckResult> {
+async function checkPhishingResistance(domain: string, authUrl: string | null = null): Promise<CheckResult> {
   const base: Omit<CheckResult, 'status' | 'finding'> = {
     id: 'phishing_resistance', name: 'Phishing-Resistant Authentication', category: 'oauth', severity: 'info',
     detail: 'Phishing-resistant authentication (passkeys, FIDO2 hardware keys) binds the credential to the origin domain at the cryptographic level. A passkey issued for app.example.com cannot be used on fake-app.example.com — the browser enforces this automatically. NIST SP 800-63-4 requires phishing-resistant MFA for AAL3 and endorses it for AAL2.',
     remediation: 'Implement WebAuthn via the browser Credential Management API or a hosted IdP with native passkey support (Okta, Auth0, Microsoft Entra, Google Identity). Libraries: SimpleWebAuthn (Node), py_webauthn (Python). Publish /.well-known/webauthn with your allowed origins.',
   };
   try {
+    const pageUrls = [
+      ...(authUrl ? [authUrl] : []),
+      `https://${domain}/login`,
+      `https://${domain}/signin`,
+      `https://${domain}/`,
+    ];
     const [wellKnown, ...pages] = await Promise.allSettled([
       fetchWithTimeout(`https://${domain}/.well-known/webauthn`, {}, 5000),
-      fetchWithTimeout(`https://${domain}/login`, { redirect: 'manual' }, 6000).then(r => r.text()),
-      fetchWithTimeout(`https://${domain}/signin`, { redirect: 'manual' }, 5000).then(r => r.text()),
-      fetchWithTimeout(`https://${domain}/`, {}, 6000).then(r => r.text()),
+      ...pageUrls.map(u => fetchWithTimeout(u, { redirect: 'manual' }, 6000).then(r => r.text())),
     ]);
 
     const wellKnownFound = wellKnown.status === 'fulfilled' && wellKnown.value.ok;
@@ -844,19 +869,22 @@ async function checkPhishingResistance(domain: string): Promise<CheckResult> {
   }
 }
 
-async function checkAuthEndpointProtection(domain: string): Promise<CheckResult> {
+async function checkAuthEndpointProtection(domain: string, authUrl: string | null = null): Promise<CheckResult> {
   const base: Omit<CheckResult, 'status' | 'finding'> = {
     id: 'auth_endpoint_protection', name: 'Auth Endpoint Protection', category: 'exposure', severity: 'high',
     detail: 'Authentication endpoints (/login, /signin, /api/auth) are primary targets for credential stuffing and brute-force attacks. Rate limiting headers (X-RateLimit-*, Retry-After) and bot protection signals (CAPTCHA, cf-mitigated) indicate active defences.',
     remediation: 'Enforce rate limiting on all login and password-reset endpoints. Use Cloudflare Rate Limiting rules, or middleware like express-rate-limit. Return 429 Too Many Requests after threshold. Add CAPTCHA (Turnstile, hCaptcha) as a second layer. Log and alert on repeated failures from the same IP.',
   };
   const authPaths = ['/login', '/signin', '/auth', '/api/auth/login', '/api/login', '/account/login'];
+  const urlsToCheck = authUrl
+    ? [authUrl, ...authPaths.map(p => `https://${domain}${p}`)]
+    : authPaths.map(p => `https://${domain}${p}`);
   try {
     const responses = await Promise.allSettled(
-      authPaths.map(p =>
-        fetchWithTimeout(`https://${domain}${p}`, { redirect: 'manual' }, 5000)
+      urlsToCheck.map(u =>
+        fetchWithTimeout(u, { redirect: 'manual' }, 5000)
           .then(r => ({
-            path: p,
+            path: u,
             status: r.status,
             rateLimitHeaders: [
               r.headers.get('x-ratelimit-limit'),
@@ -892,7 +920,9 @@ async function checkAuthEndpointProtection(domain: string): Promise<CheckResult>
 
 // ─── route handler ───────────────────────────────────────────────────────────
 
-const FREE_CHECKS = [
+type CheckFn = (domain: string, authUrl: string | null) => Promise<CheckResult>;
+
+const FREE_CHECKS: CheckFn[] = [
   checkSslValid,
   checkHttpsRedirect,
   checkHsts,
@@ -905,7 +935,7 @@ const FREE_CHECKS = [
   checkAdminExposure,
 ];
 
-const PAID_CHECKS = [
+const PAID_CHECKS: CheckFn[] = [
   ...FREE_CHECKS,
   checkCookieSameSite,
   checkCookiePrefixes,
@@ -929,6 +959,7 @@ const PAID_CHECKS = [
 export const GET: APIRoute = async ({ url }) => {
   const domainParam = url.searchParams.get('domain') ?? '';
   const report = url.searchParams.get('report') === 'paid' ? 'paid' : 'free';
+  const authUrl = parseAuthUrl(url.searchParams.get('authUrl'));
 
   const domain = sanitizeDomain(domainParam);
   if (!domain) {
@@ -939,7 +970,7 @@ export const GET: APIRoute = async ({ url }) => {
   }
 
   const checks = report === 'paid' ? PAID_CHECKS : FREE_CHECKS;
-  const settled = await Promise.allSettled(checks.map(fn => fn(domain)));
+  const settled = await Promise.allSettled(checks.map(fn => fn(domain, authUrl)));
 
   const results: CheckResult[] = settled.map((r, i) => {
     if (r.status === 'fulfilled') {
