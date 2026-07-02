@@ -828,6 +828,22 @@ async function checkIdpDetection(domain: string, authUrl: string | null = null):
   }
 }
 
+// IdPs that are known to ship native passkey/WebAuthn support
+const PASSKEY_CAPABLE_IDPS = new Set([
+  'Auth0',
+  'Okta',
+  'Microsoft Entra / Azure AD',
+  'Google Identity',
+  'AWS Cognito',
+  'Ping Identity / PingOne',
+  'WorkOS',
+  'Clerk',
+  'Stytch',
+  'Passage (1Password)',
+  'Cloudflare Access',
+  'ForgeRock / PingAM',
+]);
+
 async function checkPhishingResistance(domain: string, authUrl: string | null = null): Promise<CheckResult> {
   const base: Omit<CheckResult, 'status' | 'finding'> = {
     id: 'phishing_resistance', name: 'Phishing-Resistant Authentication', category: 'oauth', severity: 'info',
@@ -853,17 +869,33 @@ async function checkPhishingResistance(domain: string, authUrl: string | null = 
       .map(r => r.value)
       .join('\n');
 
+    // Direct signals in HTML (works for SSR pages and non-minified inline scripts)
     const webauthnApi = /navigator\.credentials|PublicKeyCredential|webauthn|authenticatorAttachment/i.test(corpus);
     const passkeyUi   = /passkey|use your fingerprint|face id|touch id|security key|sign in with a passkey|biometric/i.test(corpus);
+    // Script asset URLs in the HTML that reference webauthn/fido/passkey by name (no extra fetch needed)
+    const scriptAsset = /src=["'][^"']*(?:webauthn|passkey|fido)[^"']*\.js[^"']*["']/i.test(corpus);
+
+    // If the HTML contains IdP fingerprints from a known passkey-capable platform,
+    // count that as a signal. SPAs load UI from JS bundles so this catches white-labeled
+    // hosted IdPs (Ping, Okta, Auth0, etc.) that the HTML scan alone would miss.
+    let idpSignal = '';
+    for (const idp of IDP_SIGNATURES) {
+      if (PASSKEY_CAPABLE_IDPS.has(idp.name) && idp.patterns.some(p => p.test(corpus))) {
+        idpSignal = idp.name;
+        break;
+      }
+    }
 
     const signals: string[] = [];
     if (wellKnownFound) signals.push('/.well-known/webauthn endpoint');
-    if (webauthnApi)    signals.push('WebAuthn API usage in page scripts');
-    if (passkeyUi)      signals.push('passkey/biometric UI language detected');
+    if (webauthnApi)    signals.push('WebAuthn API in page scripts');
+    if (passkeyUi)      signals.push('passkey/biometric UI language');
+    if (scriptAsset)    signals.push('WebAuthn script assets referenced');
+    if (idpSignal)      signals.push(`${idpSignal} (passkey-capable IdP detected)`);
 
-    if (signals.length >= 2) return { ...base, status: 'pass', finding: `Strong phishing-resistant auth signals: ${signals.join(', ')}` };
+    if (signals.length >= 2) return { ...base, status: 'pass', finding: `Phishing-resistant auth signals: ${signals.join(', ')}` };
     if (signals.length === 1) return { ...base, status: 'warn', finding: `Partial signal — ${signals[0]} detected but not confirmed end-to-end` };
-    return { ...base, status: 'info', finding: 'No passkey or WebAuthn signals detected — phishing-resistant authentication may not be offered' };
+    return { ...base, status: 'info', finding: 'No passkey or WebAuthn signals detected — login page may be a client-rendered SPA; manual verification recommended' };
   } catch {
     return { ...base, status: 'error', finding: 'Could not evaluate phishing-resistant authentication signals' };
   }
