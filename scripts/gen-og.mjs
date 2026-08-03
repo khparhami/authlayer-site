@@ -899,4 +899,19 @@ async function generateNistOg({ filename }) {
 
 await generateNistOg({ filename: 'nist-800-63-4.png' });
 
+await generateArticle({
+  filename: 'public-key-cryptography.png',
+  eyebrow: 'Cryptography Fundamentals',
+  title: 'Public Key &\nPrivate Key\nExplained',
+  accentColor: '#818cf8',
+  items: [
+    'Asymmetric vs symmetric crypto',
+    'Encryption vs signing',
+    'RSA and elliptic curves',
+    'TLS & HTTPS handshake',
+    'JWT RS256 / ES256 signing',
+    'SSH, passkeys & WebAuthn',
+  ],
+});
+
 console.log('Done.');
