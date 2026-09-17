@@ -33,7 +33,8 @@ export async function GET({ props }: APIContext) {
     process.cwd(),
     'node_modules/@fontsource/inter/files/inter-latin-700-normal.woff'
   );
-  const fontData = fs.readFileSync(fontPath).buffer;
+  const fontBuf = fs.readFileSync(fontPath);
+  const fontData = fontBuf.buffer.slice(fontBuf.byteOffset, fontBuf.byteOffset + fontBuf.byteLength);
 
   const truncatedDesc =
     description.length > 130 ? description.slice(0, 130) + '…' : description;
