@@ -5,6 +5,9 @@
   "assets": {
     "directory": "./dist"
   },
+  "kv_namespaces": [
+    { "binding": "RATE_LIMIT_KV", "id": "f0eebc61d2414d2a8d59b69142f66ac9", "preview_id": "7e4d309b28b445aea6c6509b9cb67a0a" }
+  ],
   "vars": {
     "GOOGLE_CLIENT_ID": "570818895924-sclhhtrm4a94dp892ts0b0v88ggg4ovc.apps.googleusercontent.com",
     "CF_ACCOUNT_ID": "09cb4650f4cdacdcc1d0fd160aa3c114",

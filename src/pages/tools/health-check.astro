@@ -2,117 +2,224 @@
 import BaseLayout from '@/layouts/BaseLayout.astro';
 
 const PAID_CHECK_PREVIEWS = [
-  { name: 'SameSite Cookie Policy', category: 'cookies' },
-  { name: 'Secure Cookie Prefixes', category: 'cookies' },
+  { name: 'SameSite Cookie Policy',           category: 'cookies' },
+  { name: 'Secure Cookie Prefixes',           category: 'cookies' },
   { name: 'Content-Security-Policy Strength', category: 'headers' },
-  { name: 'Referrer-Policy', category: 'headers' },
-  { name: 'Permissions-Policy', category: 'headers' },
-  { name: 'Cross-Origin Isolation (COOP/CORP)', category: 'headers' },
-  { name: 'OIDC Discovery Endpoint', category: 'oauth' },
-  { name: 'PKCE Enforcement', category: 'oauth' },
-  { name: 'Deprecated OAuth Grant Types', category: 'oauth' },
-  { name: 'Phishing-Resistant Authentication', category: 'oauth' },
-  { name: 'Auth Endpoint Protection', category: 'exposure' },
-  { name: 'DKIM Record', category: 'email' },
-  { name: 'DMARC Policy Level', category: 'email' },
-  { name: 'SPF Enforcement Level', category: 'email' },
-  { name: 'Auth Subdomain Surface', category: 'exposure' },
-  { name: 'CORS Policy', category: 'headers' },
-  { name: 'Security.txt', category: 'exposure' },
+  { name: 'Referrer-Policy',                  category: 'headers' },
+  { name: 'Permissions-Policy',               category: 'headers' },
+  { name: 'Cross-Origin Isolation',           category: 'headers' },
+  { name: 'OIDC Discovery Endpoint',          category: 'oauth'   },
+  { name: 'PKCE Enforcement',                 category: 'oauth'   },
+  { name: 'Deprecated OAuth Grant Types',     category: 'oauth'   },
+  { name: 'Passkey / WebAuthn Support',       category: 'oauth'   },
+  { name: 'Phishing-Resistant Authentication',category: 'oauth'   },
+  { name: 'DKIM Record',                      category: 'email'   },
+  { name: 'DMARC Policy Level',               category: 'email'   },
+  { name: 'SPF Enforcement Level',            category: 'email'   },
+  { name: 'Auth Subdomain Surface',           category: 'exposure'},
+  { name: 'Security.txt',                     category: 'exposure'},
 ];
 ---
 
 <BaseLayout
-  title="Identity Security Health Check | AuthLayer"
-  description="Scan any domain for authentication and identity security issues — HTTPS, HSTS, cookie flags, SPF, DMARC, OAuth endpoints, passkeys, and more. Free and full report options."
+  title="External Security Assessment | AuthLayer"
+  description="See your website, APIs and authentication systems the way an attacker sees them. Discover exposed assets, authentication weaknesses, API risks and security misconfigurations before attackers do."
 >
-  <section class="hc-page">
+  <section class="esa-page">
     <div class="container">
 
       <header class="page-header">
         <span class="tag">Tools</span>
-        <h1>Identity Security Health Check</h1>
+        <h1>External Security Assessment</h1>
         <p class="subtitle">
-          Passive scan of any domain's authentication and identity security posture.
-          All checks run server-side — HTTP headers, DNS records, and well-known endpoints.
-          Nothing is written to the target.
+          See your website, APIs and authentication systems the way an attacker sees them.
+          All checks are passive and non-destructive — no writing to the target.
         </p>
       </header>
 
-      <div class="input-card">
-        <div class="input-row">
-          <div class="domain-field">
-            <label for="domain-input" class="sr-only">Domain or login URL to scan</label>
+      <!-- ── Assessment form ─────────────────────────────────── -->
+      <div class="assessment-form" id="assessment-form">
+
+        <!-- Section 1: Target -->
+        <div class="form-section">
+          <div class="section-label">Target</div>
+
+          <div class="field-row field-row--two">
+            <div class="field">
+              <label for="company-input">Company / Project name <span class="optional">optional</span></label>
+              <input
+                id="company-input"
+                type="text"
+                placeholder="Acme Corp"
+                autocomplete="organization"
+                spellcheck="false"
+              />
+            </div>
+            <div class="field">
+              <label for="domain-input">Primary website <span class="required-mark">*</span></label>
+              <input
+                id="domain-input"
+                type="text"
+                placeholder="https://example.com"
+                autocomplete="off"
+                spellcheck="false"
+                autocorrect="off"
+                autocapitalize="off"
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="auth-url-input">Login URL <span class="optional">optional — improves auth checks</span></label>
             <input
-              id="domain-input"
+              id="auth-url-input"
               type="text"
-              class="domain-input"
-              placeholder="example.com or https://login.example.com/signin"
+              placeholder="https://login.example.com/signin"
               autocomplete="off"
               spellcheck="false"
               autocorrect="off"
               autocapitalize="off"
             />
           </div>
-          <div class="btn-group">
-            <button id="btn-free" class="btn btn-primary" type="button">Run Free Report</button>
-            <button id="btn-paid" class="btn btn-pro" type="button">
-              Full Report
+
+          <div class="field">
+            <label for="additional-assets">Additional assets <span class="optional">optional — one URL per line</span></label>
+            <textarea
+              id="additional-assets"
+              rows="3"
+              placeholder="https://api.example.com&#10;https://docs.example.com"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+            ></textarea>
+          </div>
+        </div>
+
+        <!-- Section 2: Scope + authorization -->
+        <div class="form-section">
+          <div class="section-label">Scope &amp; Authorization</div>
+
+          <div class="field">
+            <label for="scope-input">Scope <span class="optional">optional — restrict scan to these domains</span></label>
+            <textarea
+              id="scope-input"
+              rows="2"
+              placeholder="example.com&#10;*.example.com"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+            ></textarea>
+          </div>
+
+          <label class="auth-checkbox-row" id="auth-label">
+            <div class="checkbox-wrapper">
+              <input type="checkbox" id="auth-checkbox" />
+              <span class="custom-checkbox"></span>
+            </div>
+            <div class="auth-checkbox-text">
+              I confirm that I own or am authorised to test these systems.
+              <span class="legal-note">Only scan systems you own or have explicit written permission to test.</span>
+            </div>
+          </label>
+
+          <p id="auth-error" class="field-error" hidden>You must confirm authorization before running an assessment.</p>
+          <p id="domain-error" class="field-error" hidden>Enter a valid website URL or domain (e.g. https://example.com or example.com)</p>
+
+          <div class="btn-row">
+            <button id="btn-free" class="btn btn-primary" type="button" disabled>
+              Run Free Assessment
+            </button>
+            <button id="btn-paid" class="btn btn-pro" type="button" disabled>
+              Full Assessment
               <span class="pro-badge">Pro</span>
             </button>
           </div>
         </div>
-        <p id="input-error" class="input-error" hidden>Enter a domain (e.g. example.com) or a full login URL (e.g. https://login.example.com/signin)</p>
+
       </div>
 
+      <!-- ── Results area ────────────────────────────────────── -->
       <div id="results-area" class="results-area">
 
-        <div id="state-empty" class="state-empty">
-          <div class="empty-icon">⬡</div>
-          <p>Enter a domain or login URL above to scan its identity security posture.</p>
-        </div>
-
+        <!-- Loading / progress -->
         <div id="state-loading" class="state-loading" hidden>
-          <div class="spinner"></div>
-          <div class="loading-text">
-            Running checks on <strong id="loading-domain"></strong>…
+          <div class="progress-header">
+            <div class="spinner"></div>
+            <div>
+              <div class="loading-title">Assessing <strong id="loading-domain"></strong></div>
+              <div class="loading-sub">Passive checks running in parallel…</div>
+            </div>
           </div>
-          <p class="loading-sub">Checks run in parallel — results appear momentarily.</p>
+          <div class="phases" id="phases-list">
+            <div class="phase phase--active" data-phase="dns">
+              <span class="phase-icon">○</span>
+              <span class="phase-name">DNS &amp; Certificate</span>
+            </div>
+            <div class="phase" data-phase="web">
+              <span class="phase-icon">○</span>
+              <span class="phase-name">HTTP Security</span>
+            </div>
+            <div class="phase" data-phase="email">
+              <span class="phase-icon">○</span>
+              <span class="phase-name">Email Security</span>
+            </div>
+            <div class="phase" data-phase="oauth">
+              <span class="phase-icon">○</span>
+              <span class="phase-name">OAuth / OIDC</span>
+            </div>
+            <div class="phase" data-phase="auth">
+              <span class="phase-icon">○</span>
+              <span class="phase-name">Authentication</span>
+            </div>
+            <div class="phase" data-phase="exposure">
+              <span class="phase-icon">○</span>
+              <span class="phase-name">Exposure Analysis</span>
+            </div>
+          </div>
         </div>
 
+        <!-- Results -->
         <div id="state-results" hidden>
 
-          <div class="score-row">
-            <div id="score-ring" class="score-ring" data-grade="?">
-              <div class="score-grade" id="score-grade">?</div>
-              <div class="score-num" id="score-num">—</div>
-            </div>
-            <div class="score-meta">
-              <div class="score-domain" id="score-domain"></div>
-              <div class="summary-chips" id="summary-chips"></div>
-              <div class="report-badge" id="report-badge"></div>
-            </div>
+          <!-- Summary bar -->
+          <div class="summary-bar" id="summary-bar">
+            <div class="summary-title" id="summary-title">External Security Assessment</div>
+            <div class="summary-stats" id="summary-stats"></div>
+            <div class="sev-breakdown" id="sev-breakdown"></div>
+            <div class="summary-chips" id="summary-chips"></div>
           </div>
 
+          <!-- Top findings -->
+          <div id="top-findings-section" class="top-findings-section" hidden>
+            <div class="section-head">
+              <span class="section-head-icon">▲</span>
+              Immediate attention
+            </div>
+            <div id="top-findings-list" class="top-findings-list"></div>
+          </div>
+
+          <!-- Full findings list -->
           <div id="results-list" class="results-list"></div>
 
+          <!-- Paid teaser -->
           <div id="paid-teaser" class="paid-teaser" hidden>
             <div class="teaser-header">
               <span class="lock-icon">⊘</span>
               <div>
-                <div class="teaser-title">Full Report — 16 additional checks</div>
+                <div class="teaser-title">Full Assessment — 16 additional checks</div>
                 <div class="teaser-sub">Cookie policy, CSP strength, OAuth posture, DKIM, DMARC enforcement, subdomain surface, and more</div>
               </div>
             </div>
             <ul class="teaser-list" id="teaser-list"></ul>
             <button id="btn-upgrade" class="btn btn-pro teaser-btn" type="button">
-              Run Full Report
+              Run Full Assessment
               <span class="pro-badge">Pro</span>
             </button>
           </div>
 
         </div>
 
+        <!-- Error -->
         <div id="state-error" class="state-error" hidden>
           <span class="error-icon">✗</span>
           <span id="error-text"></span>
@@ -124,60 +231,96 @@ const PAID_CHECK_PREVIEWS = [
 </BaseLayout>
 
 <script define:vars={{ PAID_CHECK_PREVIEWS }}>
-  const domainInput = document.getElementById('domain-input');
-  const btnFree     = document.getElementById('btn-free');
-  const btnPaid     = document.getElementById('btn-paid');
-  const btnUpgrade  = document.getElementById('btn-upgrade');
-  const inputError  = document.getElementById('input-error');
+  // ─── DOM refs ───────────────────────────────────────────────────────────────
+  const domainInput      = document.getElementById('domain-input');
+  const authUrlInput     = document.getElementById('auth-url-input');
+  const additionalAssets = document.getElementById('additional-assets');
+  const scopeInput       = document.getElementById('scope-input');
+  const authCheckbox     = document.getElementById('auth-checkbox');
 
-  const stateEmpty   = document.getElementById('state-empty');
+  const btnFree    = document.getElementById('btn-free');
+  const btnPaid    = document.getElementById('btn-paid');
+  const btnUpgrade = document.getElementById('btn-upgrade');
+
+  const authError   = document.getElementById('auth-error');
+  const domainError = document.getElementById('domain-error');
+
   const stateLoading = document.getElementById('state-loading');
   const stateResults = document.getElementById('state-results');
   const stateError   = document.getElementById('state-error');
 
-  const loadingDomain = document.getElementById('loading-domain');
-  const scoreRing     = document.getElementById('score-ring');
-  const scoreGrade    = document.getElementById('score-grade');
-  const scoreNum      = document.getElementById('score-num');
-  const scoreDomain   = document.getElementById('score-domain');
-  const summaryChips  = document.getElementById('summary-chips');
-  const reportBadge   = document.getElementById('report-badge');
-  const resultsList   = document.getElementById('results-list');
-  const paidTeaser    = document.getElementById('paid-teaser');
-  const teaserList    = document.getElementById('teaser-list');
-  const errorText     = document.getElementById('error-text');
+  const loadingDomain    = document.getElementById('loading-domain');
+  const phasesList       = document.getElementById('phases-list');
+  const summaryBar       = document.getElementById('summary-bar');
+  const summaryTitle     = document.getElementById('summary-title');
+  const summaryStats     = document.getElementById('summary-stats');
+  const sevBreakdown     = document.getElementById('sev-breakdown');
+  const summaryChips     = document.getElementById('summary-chips');
+  const topFindingsSection = document.getElementById('top-findings-section');
+  const topFindingsList  = document.getElementById('top-findings-list');
+  const resultsList      = document.getElementById('results-list');
+  const paidTeaser       = document.getElementById('paid-teaser');
+  const teaserList       = document.getElementById('teaser-list');
+  const errorText        = document.getElementById('error-text');
 
+  // ─── Constants ──────────────────────────────────────────────────────────────
   const CATEGORY_LABELS = {
-    transport: 'Transport Security',
-    cookies:   'Cookie Security',
-    headers:   'HTTP Security Headers',
-    email:     'Email Authentication',
-    oauth:     'OAuth / OIDC Posture',
-    exposure:  'Exposure & Disclosure',
+    transport:      'Transport Security',
+    cookies:        'Cookie Security',
+    headers:        'HTTP Security Headers',
+    email:          'Email Authentication',
+    oauth:          'OAuth / OIDC Posture',
+    exposure:       'Exposure & Disclosure',
+    api:            'API Security',
+    authentication: 'Authentication',
   };
 
   const STATUS_ICON  = { pass: '✓', fail: '✗', warn: '⚠', info: '●', error: '?' };
-  const STATUS_LABEL = { pass: 'Pass', fail: 'Fail', warn: 'Warning', info: 'Info', error: 'N/A' };
 
-  const SEV_ICON  = { critical: '◆', high: '▲', medium: '■', low: '▸', info: '·' };
-  const SEV_LABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', info: 'Info' };
+  const SEV_ICON  = { critical: '◆', high: '▲', medium: '■', low: '▸', informational: '·' };
+  const SEV_LABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', informational: 'Info' };
 
-  const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+  const CONF_LABEL = {
+    confirmed:     'Confirmed',
+    high:          'High confidence',
+    medium:        'Medium confidence',
+    low:           'Low confidence',
+    informational: 'Informational',
+  };
 
-  function sanitizeDomainClient(input) {
-    let d = input.trim().toLowerCase();
-    d = d.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    return d || null;
+  const PHASE_ORDER = ['dns', 'web', 'email', 'oauth', 'auth', 'exposure'];
+  const PHASE_DELAYS = [800, 1600, 2400, 3200, 4000, 4800];
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   function isValidDomain(d) {
     if (!d) return false;
-    return /^[a-z0-9]([a-z0-9\-.]{0,251}[a-z0-9])?$/.test(d) &&
-      !/^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(d);
+    const lower = d.toLowerCase();
+    if (/(^localhost$|^127\.|^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\.|^169\.254\.|^0\.|\.local$)/.test(lower)) return false;
+    return /^[a-z0-9]([a-z0-9\-.]{0,251}[a-z0-9])?$/.test(lower);
+  }
+
+  function parseInput(raw) {
+    const trimmed = raw.trim();
+    if (/^https?:\/\//i.test(trimmed)) {
+      try {
+        const secure = trimmed.replace(/^http:\/\//i, 'https://');
+        const u = new URL(secure);
+        return { domain: u.hostname.toLowerCase(), authUrl: u.href };
+      } catch { return { domain: null, authUrl: null }; }
+    }
+    const d = trimmed.toLowerCase().replace(/^https?:\/\//, '').replace(/[/?#].*$/, '').trim();
+    return { domain: d || null, authUrl: null };
   }
 
   function setState(name) {
-    stateEmpty.hidden   = name !== 'empty';
     stateLoading.hidden = name !== 'loading';
     stateResults.hidden = name !== 'results';
     stateError.hidden   = name !== 'error';
@@ -187,37 +330,125 @@ const PAID_CHECK_PREVIEWS = [
     return { A: '#34d399', B: '#4ade80', C: '#fbbf24', D: '#f97316', F: '#f87171' }[grade] ?? '#64748b';
   }
 
-  function severityClass(sev) {
-    return { critical: 'sev-critical', high: 'sev-high', medium: 'sev-medium', low: 'sev-low', info: 'sev-info' }[sev] ?? '';
+  // ─── Phase animation ────────────────────────────────────────────────────────
+  let phaseTimers = [];
+
+  function startPhaseAnimation() {
+    stopPhaseAnimation();
+    const phases = phasesList.querySelectorAll('.phase');
+    phases.forEach(p => {
+      p.classList.remove('phase--active', 'phase--done');
+      p.querySelector('.phase-icon').textContent = '○';
+    });
+    PHASE_ORDER.forEach((name, i) => {
+      const t = setTimeout(() => {
+        // Mark previous done
+        if (i > 0) {
+          const prev = phasesList.querySelector(`[data-phase="${PHASE_ORDER[i - 1]}"]`);
+          if (prev) {
+            prev.classList.remove('phase--active');
+            prev.classList.add('phase--done');
+            prev.querySelector('.phase-icon').textContent = '✓';
+          }
+        }
+        const cur = phasesList.querySelector(`[data-phase="${name}"]`);
+        if (cur) {
+          cur.classList.add('phase--active');
+          cur.querySelector('.phase-icon').textContent = '●';
+        }
+      }, PHASE_DELAYS[i]);
+      phaseTimers.push(t);
+    });
   }
 
+  function stopPhaseAnimation() {
+    phaseTimers.forEach(clearTimeout);
+    phaseTimers = [];
+  }
+
+  function completePhaseAnimation() {
+    stopPhaseAnimation();
+    const phases = phasesList.querySelectorAll('.phase');
+    phases.forEach(p => {
+      p.classList.remove('phase--active');
+      p.classList.add('phase--done');
+      p.querySelector('.phase-icon').textContent = '✓';
+    });
+  }
+
+  // ─── Authorization toggle ───────────────────────────────────────────────────
+  authCheckbox.addEventListener('change', () => {
+    const checked = authCheckbox.checked;
+    btnFree.disabled = !checked;
+    btnPaid.disabled = !checked;
+    authError.hidden = true;
+  });
+
+  // ─── Build results ──────────────────────────────────────────────────────────
   function buildResults(data) {
-    const { domain, report, score, grade, checks } = data;
+    const { domain, report, findings, topFindings, assetsDiscovered, endpointsTested, testsRun, score, grade } = data;
+    const company = document.getElementById('company-input').value.trim();
 
-    // Score ring
+    // Summary bar
     const color = gradeColor(grade);
-    scoreRing.style.setProperty('--grade-color', color);
-    scoreGrade.textContent = grade;
-    scoreNum.textContent = `${score}/100`;
-    scoreDomain.textContent = domain;
+    summaryTitle.textContent = company ? `${company} — External Security Assessment` : 'External Security Assessment';
 
-    // Report badge
-    reportBadge.textContent = report === 'paid' ? 'Full Report' : 'Free Report';
-    reportBadge.className = 'report-badge ' + (report === 'paid' ? 'badge-paid' : 'badge-free');
+    const sevCounts = { critical: 0, high: 0, medium: 0, low: 0, informational: 0 };
+    for (const f of findings) {
+      if (f.status === 'fail' || f.status === 'warn') {
+        const k = f.severity === 'informational' ? 'informational' : f.severity;
+        if (k in sevCounts) sevCounts[k]++;
+      }
+    }
 
-    // Summary chips
-    const passed  = checks.filter(c => c.status === 'pass').length;
-    const warned  = checks.filter(c => c.status === 'warn').length;
-    const failed  = checks.filter(c => c.status === 'fail').length;
-    const errored = checks.filter(c => c.status === 'error').length;
+    summaryStats.innerHTML = `
+      <span class="stat"><span class="stat-value">${assetsDiscovered}</span> asset${assetsDiscovered !== 1 ? 's' : ''}</span>
+      <span class="stat-sep">·</span>
+      <span class="stat"><span class="stat-value">${endpointsTested}</span> endpoints tested</span>
+      <span class="stat-sep">·</span>
+      <span class="stat"><span class="stat-value">${testsRun}</span> tests run</span>
+      <span class="stat-sep">·</span>
+      <span class="stat grade-stat" style="--grade-color:${color}">
+        <span class="stat-value grade-val" style="color:${color}">${grade}</span>
+        <span class="stat-sub">${score}/100</span>
+      </span>`;
+
+    const sevRows = [
+      { key: 'critical',     label: 'Critical', color: '#f87171' },
+      { key: 'high',         label: 'High',     color: '#fb923c' },
+      { key: 'medium',       label: 'Medium',   color: '#facc15' },
+      { key: 'low',          label: 'Low',       color: '#60a5fa' },
+      { key: 'informational',label: 'Info',     color: '#94a3b8' },
+    ];
+    sevBreakdown.innerHTML = sevRows.map(r =>
+      `<div class="sev-cell">
+        <span class="sev-count" style="color:${r.color}">${sevCounts[r.key]}</span>
+        <span class="sev-label-sm">${r.label}</span>
+      </div>`
+    ).join('');
+
+    const passed  = findings.filter(f => f.status === 'pass').length;
+    const warned  = findings.filter(f => f.status === 'warn').length;
+    const failed  = findings.filter(f => f.status === 'fail').length;
+    const errored = findings.filter(f => f.status === 'error').length;
     summaryChips.innerHTML = [
       `<span class="chip chip-pass">${passed} passed</span>`,
       warned  ? `<span class="chip chip-warn">${warned} warning${warned > 1 ? 's' : ''}</span>` : '',
       failed  ? `<span class="chip chip-fail">${failed} failed</span>` : '',
-      errored ? `<span class="chip chip-err">${errored} error${errored > 1 ? 's' : ''}</span>` : '',
+      errored ? `<span class="chip chip-err">${errored} N/A</span>` : '',
+      `<span class="chip ${report === 'paid' ? 'chip-paid' : 'chip-free'}">${report === 'paid' ? 'Full Assessment' : 'Free Assessment'}</span>`,
     ].filter(Boolean).join('');
 
-    // Group by risk level
+    // Top findings
+    if (topFindings?.length > 0) {
+      topFindingsList.innerHTML = '';
+      for (const f of topFindings) topFindingsList.appendChild(buildCard(f, true));
+      topFindingsSection.hidden = false;
+    } else {
+      topFindingsSection.hidden = true;
+    }
+
+    // Risk-grouped full list
     const RISK_GROUPS = [
       { key: 'critical', label: 'Critical Issues',    icon: '◆', color: '#ef4444' },
       { key: 'high',     label: 'High Risk',          icon: '▲', color: '#f97316' },
@@ -236,92 +467,14 @@ const PAID_CHECK_PREVIEWS = [
 
     const grouped = {};
     for (const g of RISK_GROUPS) grouped[g.key] = [];
-    for (const c of checks) grouped[getGroup(c)].push(c);
-
-    function buildCard(check) {
-      const isError  = check.status === 'error';
-      const isPass   = check.status === 'pass';
-      const showSev  = check.status === 'fail' || check.status === 'warn';
-      const hasDetail = check.detail || check.remediation || isError;
-
-      // Inline refs shown below the finding for fail/warn — justify why it's an issue
-      const inlineRefsHtml = (showSev && check.references?.length) ? `
-        <div class="inline-refs">${
-          check.references.slice(0, 3).map(r =>
-            `<a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="inline-ref">${escHtml(r.label)}</a>`
-          ).join('')
-        }</div>` : '';
-
-      // Full refs in the expanded panel
-      const allRefsHtml = check.references?.length ? `
-        <div class="ref-row">
-          <span class="ref-label">Standards &amp; References</span>
-          <div class="ref-links">${
-            check.references.map(r =>
-              `<a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="ref-link">${escHtml(r.label)}</a>`
-            ).join('')
-          }</div>
-        </div>` : '';
-
-      const errorBannerHtml = isError ? `
-        <div class="error-banner">
-          <span class="error-banner-icon">?</span>
-          <div>
-            <div class="error-banner-title">Could not complete this check</div>
-            <div class="error-banner-body">${escHtml(check.errorReason ?? 'The domain may be unreachable, the request timed out, or the endpoint does not exist. This is not a security finding.')}</div>
-          </div>
-        </div>` : '';
-
-      const detailHtml = hasDetail ? `
-        <div class="result-detail" hidden>
-          ${isError ? errorBannerHtml : ''}
-          ${check.detail ? `<p class="detail-text">${escHtml(check.detail)}</p>` : ''}
-          ${check.remediation ? `<div class="remediation"><span class="remed-label">How to fix</span>${escHtml(check.remediation)}</div>` : ''}
-          ${allRefsHtml}
-        </div>` : '';
-
-      const card = document.createElement('div');
-      card.className = `result-card status-${check.status}`;
-      card.innerHTML = `
-        <div class="result-row${hasDetail ? ' expandable' : ''}"${hasDetail ? ' role="button" tabindex="0"' : ''}>
-          <span class="status-dot status-${check.status}">${STATUS_ICON[check.status] ?? '?'}</span>
-          <div class="result-body">
-            <div class="result-header-row">
-              <span class="check-name">${escHtml(check.name)}</span>
-              ${showSev ? `<span class="sev-badge sev-${check.severity}"><span class="sev-icon">${SEV_ICON[check.severity] ?? ''}</span>${SEV_LABEL[check.severity] ?? check.severity}</span>` : ''}
-              ${isError ? '<span class="sev-badge sev-na">N/A</span>' : ''}
-            </div>
-            <span class="check-finding">${escHtml(check.finding)}</span>
-            ${inlineRefsHtml}
-          </div>
-          ${hasDetail ? '<span class="expand-arrow" aria-hidden="true">▸</span>' : ''}
-        </div>
-        ${detailHtml}`;
-
-      if (hasDetail) {
-        const row  = card.querySelector('.result-row');
-        const detail = card.querySelector('.result-detail');
-        const arrow  = card.querySelector('.expand-arrow');
-        const toggle = () => {
-          const open = !detail.hidden;
-          detail.hidden = open;
-          if (arrow) arrow.textContent = open ? '▸' : '▾';
-          card.classList.toggle('expanded', !open);
-        };
-        row.addEventListener('click', toggle);
-        row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
-      }
-      return card;
-    }
+    for (const c of findings) grouped[getGroup(c)].push(c);
 
     resultsList.innerHTML = '';
     for (const group of RISK_GROUPS) {
       const items = grouped[group.key];
       if (!items.length) continue;
-
       const section = document.createElement('div');
       section.className = `risk-section risk-section-${group.key}`;
-
       const header = document.createElement('div');
       header.className = `risk-header risk-${group.key}`;
       header.innerHTML = `
@@ -329,22 +482,20 @@ const PAID_CHECK_PREVIEWS = [
         <span class="risk-hlabel">${group.label}</span>
         <span class="risk-hcount">${items.length}</span>`;
       section.appendChild(header);
-
       const cardsDiv = document.createElement('div');
       cardsDiv.className = `risk-cards risk-cards-${group.key}`;
-      for (const check of items) cardsDiv.appendChild(buildCard(check));
+      for (const check of items) cardsDiv.appendChild(buildCard(check, false));
       section.appendChild(cardsDiv);
-
       resultsList.appendChild(section);
     }
 
-    // Paid teaser (only for free reports)
+    // Paid teaser
     if (report === 'free') {
       teaserList.innerHTML = PAID_CHECK_PREVIEWS.map(c =>
         `<li class="teaser-item">
           <span class="lock-pill">🔒</span>
           <span class="teaser-check-name">${escHtml(c.name)}</span>
-          <span class="teaser-cat">${CATEGORY_LABELS[c.category] ?? c.category}</span>
+          <span class="teaser-cat">${escHtml(CATEGORY_LABELS[c.category] ?? c.category)}</span>
         </li>`
       ).join('');
       paidTeaser.hidden = false;
@@ -353,121 +504,311 @@ const PAID_CHECK_PREVIEWS = [
     }
   }
 
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
+  function buildCard(f, compact) {
+    const showSev  = f.status === 'fail' || f.status === 'warn';
+    const isError  = f.status === 'error';
+    const hasDetail = f.detail || f.remediation || f.business_impact || f.evidence || isError;
 
-  function parseInput(raw) {
-    const trimmed = raw.trim();
-    if (/^https?:\/\//i.test(trimmed)) {
-      try {
-        const u = new URL(trimmed.startsWith('http://') ? trimmed.replace(/^http:\/\//i, 'https://') : trimmed);
-        return { domain: u.hostname.toLowerCase(), authUrl: u.href };
-      } catch {
-        return { domain: null, authUrl: null };
-      }
+    const inlineRefsHtml = (showSev && f.references?.length) ? `
+      <div class="inline-refs">${
+        f.references.slice(0, 3).map(r =>
+          `<a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="inline-ref">${escHtml(r.label)}</a>`
+        ).join('')
+      }</div>` : '';
+
+    const confBadgeHtml = showSev && f.confidence && f.confidence !== 'confirmed'
+      ? `<span class="conf-badge">${escHtml(CONF_LABEL[f.confidence] ?? f.confidence)}</span>`
+      : '';
+
+    const allRefsHtml = f.references?.length ? `
+      <div class="ref-row">
+        <span class="ref-label">Standards &amp; References</span>
+        <div class="ref-links">${
+          f.references.map(r =>
+            `<a href="${escHtml(r.url)}" target="_blank" rel="noopener noreferrer" class="ref-link">${escHtml(r.label)}</a>`
+          ).join('')
+        }</div>
+      </div>` : '';
+
+    const mappingsHtml = (f.owasp_mapping || f.cwe) ? `
+      <div class="mappings-row">
+        ${f.owasp_mapping ? `<span class="mapping-tag owasp-tag">${escHtml(f.owasp_mapping)}</span>` : ''}
+        ${f.cwe ? `<span class="mapping-tag cwe-tag">${escHtml(f.cwe)}</span>` : ''}
+      </div>` : '';
+
+    const errorBannerHtml = isError ? `
+      <div class="error-banner">
+        <span class="error-banner-icon">?</span>
+        <div>
+          <div class="error-banner-title">Could not complete this check</div>
+          <div class="error-banner-body">${escHtml(f.errorReason ?? 'The domain may be unreachable, the request timed out, or the endpoint does not exist. This is not a security finding.')}</div>
+        </div>
+      </div>` : '';
+
+    const detailHtml = hasDetail ? `
+      <div class="result-detail" hidden>
+        ${isError ? errorBannerHtml : ''}
+        ${f.detail ? `<p class="detail-text">${escHtml(f.detail)}</p>` : ''}
+        ${f.business_impact ? `<div class="impact-block"><span class="impact-label">Business impact</span>${escHtml(f.business_impact)}</div>` : ''}
+        ${f.remediation ? `<div class="remediation"><span class="remed-label">How to fix</span>${escHtml(f.remediation)}</div>` : ''}
+        ${mappingsHtml}
+        ${allRefsHtml}
+      </div>` : '';
+
+    const card = document.createElement('div');
+    card.className = `result-card status-${f.status}${compact ? ' result-card--compact' : ''}`;
+    card.innerHTML = `
+      <div class="result-row${hasDetail ? ' expandable' : ''}"${hasDetail ? ' role="button" tabindex="0"' : ''}>
+        <span class="status-dot status-${f.status}">${STATUS_ICON[f.status] ?? '?'}</span>
+        <div class="result-body">
+          <div class="result-header-row">
+            <span class="check-name">${escHtml(f.name)}</span>
+            ${showSev ? `<span class="sev-badge sev-${f.severity}"><span class="sev-icon">${SEV_ICON[f.severity] ?? ''}</span>${SEV_LABEL[f.severity] ?? f.severity}</span>` : ''}
+            ${isError ? '<span class="sev-badge sev-na">N/A</span>' : ''}
+            ${confBadgeHtml}
+          </div>
+          <span class="check-finding">${escHtml(f.finding)}</span>
+          ${inlineRefsHtml}
+        </div>
+        ${hasDetail ? '<span class="expand-arrow" aria-hidden="true">▸</span>' : ''}
+      </div>
+      ${detailHtml}`;
+
+    if (hasDetail) {
+      const row    = card.querySelector('.result-row');
+      const detail = card.querySelector('.result-detail');
+      const arrow  = card.querySelector('.expand-arrow');
+      const toggle = () => {
+        const open = !detail.hidden;
+        detail.hidden = open;
+        if (arrow) arrow.textContent = open ? '▸' : '▾';
+        card.classList.toggle('expanded', !open);
+      };
+      row.addEventListener('click', toggle);
+      row.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
     }
-    const domain = sanitizeDomainClient(trimmed);
-    return { domain, authUrl: null };
+    return card;
   }
 
+  // ─── Run scan ───────────────────────────────────────────────────────────────
   async function runReport(reportType) {
-    const { domain, authUrl } = parseInput(domainInput.value);
+    authError.hidden = true;
+    domainError.hidden = true;
 
-    inputError.hidden = true;
+    if (!authCheckbox.checked) {
+      authError.hidden = false;
+      authCheckbox.closest('.auth-checkbox-row').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    const { domain, authUrl: parsedAuthUrl } = parseInput(domainInput.value);
     if (!isValidDomain(domain)) {
-      inputError.hidden = false;
+      domainError.hidden = false;
       domainInput.focus();
       return;
     }
 
     setState('loading');
-    loadingDomain.textContent = authUrl ?? domain;
+    loadingDomain.textContent = document.getElementById('company-input').value.trim()
+      ? `${document.getElementById('company-input').value.trim()} (${domain})`
+      : domain;
+    startPhaseAnimation();
+
     btnFree.disabled = true;
     btnPaid.disabled = true;
 
     try {
+      const authUrlVal = document.getElementById('auth-url-input').value.trim() || parsedAuthUrl;
+      const extraAssets = document.getElementById('additional-assets').value.trim();
+      const scopeVal    = document.getElementById('scope-input').value.trim();
+
       let apiUrl = `/api/health-check?domain=${encodeURIComponent(domain)}&report=${reportType}`;
-      if (authUrl) apiUrl += `&authUrl=${encodeURIComponent(authUrl)}`;
-      const res = await fetch(apiUrl);
+      if (authUrlVal)    apiUrl += `&authUrl=${encodeURIComponent(authUrlVal)}`;
+      if (extraAssets)   apiUrl += `&additionalAssets=${encodeURIComponent(extraAssets)}`;
+      if (scopeVal)      apiUrl += `&scope=${encodeURIComponent(scopeVal)}`;
+
+      const res  = await fetch(apiUrl);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Scan failed');
+      if (!res.ok) throw new Error(data.error ?? 'Assessment failed');
+
+      completePhaseAnimation();
       buildResults(data);
       setState('results');
+      document.getElementById('results-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) {
+      stopPhaseAnimation();
       errorText.textContent = e.message ?? 'An unexpected error occurred';
       setState('error');
     } finally {
-      btnFree.disabled = false;
-      btnPaid.disabled = false;
+      btnFree.disabled  = !authCheckbox.checked;
+      btnPaid.disabled  = !authCheckbox.checked;
     }
   }
 
-  btnFree.addEventListener('click', () => runReport('free'));
-  btnPaid.addEventListener('click', () => runReport('paid'));
-  btnUpgrade?.addEventListener('click', () => runReport('paid'));
+  btnFree.addEventListener('click',    () => runReport('free'));
+  btnPaid.addEventListener('click',    () => runReport('paid'));
+  btnUpgrade?.addEventListener('click',() => runReport('paid'));
 
   domainInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') runReport('free');
+    if (e.key === 'Enter' && authCheckbox.checked) runReport('free');
   });
 </script>
 
 <style>
-  /* ─── Page ───────────────────────────────────────── */
-  .hc-page { padding: 3rem 0 6rem; }
-
-  .page-header { margin-bottom: 2rem; }
+  /* ─── Page ──────────────────────────────────────────────────────── */
+  .esa-page { padding: 3rem 0 6rem; }
+  .page-header { margin-bottom: 2.5rem; }
   .page-header .tag { margin-bottom: 0.75rem; }
-  .page-header h1 { font-size: 2rem; color: #fff; margin-top: 0.5rem; margin-bottom: 0.75rem; }
+  .page-header h1 { font-size: 2.1rem; color: #fff; margin-top: 0.5rem; margin-bottom: 0.75rem; }
   .subtitle { color: var(--text-dim); max-width: 640px; font-size: 0.95rem; line-height: 1.6; }
 
-  /* ─── Input card ─────────────────────────────────── */
-  .input-card {
+  /* ─── Assessment form ───────────────────────────────────────────── */
+  .assessment-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 1.5rem;
+    overflow: hidden;
     margin-bottom: 2.5rem;
   }
 
-  .input-row {
+  .form-section {
+    padding: 1.75rem;
     display: flex;
-    gap: 0.75rem;
-    align-items: stretch;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .form-section + .form-section {
+    border-top: 1px solid var(--border);
   }
 
-  .domain-field { flex: 1; min-width: 220px; }
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+  }
 
-  .domain-input {
-    width: 100%;
-    height: 100%;
-    min-height: 46px;
+  .field { display: flex; flex-direction: column; gap: 0.4rem; }
+  .field label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+  .optional {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+  .required-mark { color: #f87171; }
+
+  .field input,
+  .field textarea {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
     color: var(--text);
     font-family: var(--font-mono);
-    font-size: 1rem;
-    padding: 0.65rem 1.1rem;
+    font-size: 0.9rem;
+    padding: 0.65rem 1rem;
     outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
+    resize: vertical;
+    width: 100%;
     box-sizing: border-box;
   }
-  .domain-input:focus {
+  .field input:focus,
+  .field textarea:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.12);
   }
-  .domain-input::placeholder { color: var(--text-muted); }
+  .field input::placeholder,
+  .field textarea::placeholder { color: var(--text-muted); }
 
-  .btn-group { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .field-row--two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
 
+  /* ─── Authorization checkbox ────────────────────────────────────── */
+  .auth-checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    cursor: pointer;
+    padding: 1rem 1.1rem;
+    border: 1px solid rgba(52,211,153,0.20);
+    border-radius: 10px;
+    background: rgba(52,211,153,0.04);
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .auth-checkbox-row:hover {
+    border-color: rgba(52,211,153,0.35);
+    background: rgba(52,211,153,0.07);
+  }
+
+  .checkbox-wrapper {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+  }
+  .checkbox-wrapper input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .custom-checkbox {
+    display: block;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    transition: border-color 0.15s, background 0.15s;
+    cursor: pointer;
+  }
+  .checkbox-wrapper input:checked ~ .custom-checkbox {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .checkbox-wrapper input:checked ~ .custom-checkbox::after {
+    content: '✓';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 900;
+    color: #080c18;
+  }
+
+  .auth-checkbox-text {
+    font-size: 0.87rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .legal-note {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+  }
+
+  .field-error { color: #f87171; font-size: 0.82rem; margin-top: -0.25rem; }
+
+  /* ─── Buttons ───────────────────────────────────────────────────── */
+  .btn-row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
   .btn {
-    padding: 0.65rem 1.4rem;
+    padding: 0.7rem 1.5rem;
     border-radius: 8px;
     font-size: 0.875rem;
     font-weight: 600;
@@ -476,7 +817,7 @@ const PAID_CHECK_PREVIEWS = [
     transition: opacity 0.15s, background 0.15s, box-shadow 0.15s;
     white-space: nowrap;
   }
-  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
   .btn-primary { background: var(--accent); color: #080c18; }
   .btn-primary:hover:not(:disabled) { opacity: 0.88; box-shadow: 0 0 0 3px rgba(52,211,153,0.20); }
@@ -503,44 +844,157 @@ const PAID_CHECK_PREVIEWS = [
     text-transform: uppercase;
   }
 
-  .input-error { color: #f87171; font-size: 0.82rem; margin-top: 0.5rem; }
+  /* ─── Results area ──────────────────────────────────────────────── */
+  .results-area { min-height: 80px; }
 
-  /* ─── States ─────────────────────────────────────── */
-  .results-area { min-height: 200px; }
-
-  .state-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 5rem 1rem;
-    color: var(--text-muted);
-    text-align: center;
-  }
-  .empty-icon { font-size: 2.5rem; opacity: 0.25; line-height: 1; }
-
+  /* ─── Loading / phases ──────────────────────────────────────────── */
   .state-loading {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2rem;
     display: flex;
     flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .progress-header {
+    display: flex;
     align-items: center;
     gap: 1.25rem;
-    padding: 5rem 1rem;
-    color: var(--text-dim);
-    text-align: center;
   }
+
   .spinner {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border: 3px solid var(--border);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.75s linear infinite;
+    flex-shrink: 0;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { font-size: 1rem; color: var(--text); font-weight: 500; }
-  .loading-sub  { font-size: 0.82rem; color: var(--text-muted); }
 
+  .loading-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+  .loading-sub   { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+  .phases {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .phase {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    transition: background 0.3s, border-color 0.3s, color 0.3s;
+  }
+  .phase-icon {
+    font-size: 0.75rem;
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    transition: color 0.3s;
+  }
+  .phase--active {
+    background: rgba(52,211,153,0.08);
+    border-color: rgba(52,211,153,0.30);
+    color: var(--text);
+  }
+  .phase--active .phase-icon { color: var(--accent); }
+  .phase--done {
+    background: rgba(34,197,94,0.06);
+    border-color: rgba(34,197,94,0.22);
+    color: #6ee7b7;
+  }
+  .phase--done .phase-icon { color: #34d399; }
+
+  /* ─── Summary bar ───────────────────────────────────────────────── */
+  .summary-bar {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.75rem 2rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .summary-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 5% 50%, rgba(52,211,153,0.04) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .summary-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.01em;
+  }
+
+  .summary-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-dim);
+  }
+  .stat { display: flex; align-items: baseline; gap: 0.3rem; }
+  .stat-value { font-weight: 700; color: #e2e8f0; font-size: 1rem; }
+  .stat-sep { color: var(--border); }
+  .grade-stat .stat-value { font-size: 1.3rem; font-weight: 900; }
+  .stat-sub { font-size: 0.72rem; color: var(--text-muted); }
+
+  .sev-breakdown {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .sev-cell { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; min-width: 44px; }
+  .sev-count { font-size: 1.4rem; font-weight: 800; line-height: 1; }
+  .sev-label-sm { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); }
+
+  /* ─── Top findings ──────────────────────────────────────────────── */
+  .top-findings-section {
+    margin-bottom: 1.5rem;
+    background: var(--bg-card);
+    border: 1px solid rgba(249,115,22,0.35);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.85rem 1.25rem;
+    background: linear-gradient(90deg, rgba(249,115,22,0.18) 0%, rgba(249,115,22,0.06) 100%);
+    border-bottom: 1px solid rgba(249,115,22,0.20);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: #fdba74;
+  }
+  .section-head-icon { font-size: 0.68rem; }
+
+  .top-findings-list { display: flex; flex-direction: column; }
+  .result-card--compact .result-row { padding: 0.85rem 1.1rem; }
+
+  /* ─── State: error ──────────────────────────────────────────────── */
   .state-error {
     display: flex;
     align-items: center;
@@ -554,201 +1008,70 @@ const PAID_CHECK_PREVIEWS = [
   }
   .error-icon { font-size: 1.1rem; flex-shrink: 0; }
 
-  /* ─── Score card ─────────────────────────────────── */
-  .score-row {
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 2rem;
-    margin-bottom: 2.5rem;
-    flex-wrap: wrap;
-    position: relative;
-    overflow: hidden;
-  }
-  .score-row::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse 60% 80% at 10% 50%, rgba(52,211,153,0.05) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  .score-ring {
-    --grade-color: #64748b;
-    width: 96px;
-    height: 96px;
-    border-radius: 50%;
-    border: 5px solid var(--grade-color);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    background: color-mix(in srgb, var(--grade-color) 12%, transparent);
-    box-shadow: 0 0 24px color-mix(in srgb, var(--grade-color) 20%, transparent);
-    position: relative;
-    z-index: 1;
-  }
-  .score-grade {
-    font-size: 2.75rem;
-    font-weight: 900;
-    color: var(--grade-color);
-    line-height: 1;
-    letter-spacing: -0.03em;
-  }
-  .score-num {
-    font-size: 0.6rem;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    letter-spacing: 0.03em;
-  }
-
-  .score-meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    position: relative;
-    z-index: 1;
-  }
-  .score-domain {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: -0.01em;
-  }
-  .summary-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.1rem; }
-  .report-badge {
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    padding: 0.25em 0.8em;
-    border-radius: 5px;
-    align-self: flex-start;
-  }
-
-  /* ─── Mobile (static template elements only) ─────── */
+  /* ─── Mobile ────────────────────────────────────────────────────── */
   @media (max-width: 768px) {
-    .input-row    { flex-direction: column; }
-    .domain-field { width: 100%; }
-    .btn-group    { width: 100%; }
-    .btn          { flex: 1; justify-content: center; }
-    .score-row    { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
+    .field-row--two { grid-template-columns: 1fr; }
+    .phases { grid-template-columns: 1fr 1fr; }
+    .sev-breakdown { gap: 1rem; }
+    .summary-stats { gap: 0.35rem; }
+  }
+  @media (max-width: 480px) {
+    .phases { grid-template-columns: 1fr; }
   }
 </style>
 
-<!-- Styles for elements created dynamically by JavaScript must be global
-     because JS-created DOM nodes don't receive Astro's data-astro-cid attribute -->
 <style is:global>
-
-  /* ─── Summary chips (innerHTML) ─────────────────── */
+  /* ─── Chips ─────────────────────────────────────────────────────── */
   .chip { font-size: 0.73rem; font-weight: 700; padding: 0.3em 0.85em; border-radius: 9999px; letter-spacing: 0.03em; }
-  .chip-pass { background: rgba(52,211,153,0.15);  border: 1px solid rgba(52,211,153,0.35);  color: #6ee7b7; }
-  .chip-warn { background: rgba(251,191,36,0.15);  border: 1px solid rgba(251,191,36,0.35);  color: #fcd34d; }
-  .chip-fail { background: rgba(248,113,113,0.15); border: 1px solid rgba(248,113,113,0.35); color: #fca5a5; }
-  .chip-err  { background: rgba(100,116,139,0.15); border: 1px solid rgba(100,116,139,0.35); color: #94a3b8; }
+  .chip-pass { background: rgba(52,211,153,0.15);   border: 1px solid rgba(52,211,153,0.35);   color: #6ee7b7; }
+  .chip-warn { background: rgba(251,191,36,0.15);   border: 1px solid rgba(251,191,36,0.35);   color: #fcd34d; }
+  .chip-fail { background: rgba(248,113,113,0.15);  border: 1px solid rgba(248,113,113,0.35);  color: #fca5a5; }
+  .chip-err  { background: rgba(100,116,139,0.15);  border: 1px solid rgba(100,116,139,0.35);  color: #94a3b8; }
+  .chip-free { background: rgba(56,189,248,0.15);   border: 1px solid rgba(56,189,248,0.30);   color: #7dd3fc; }
+  .chip-paid { background: rgba(129,140,248,0.15);  border: 1px solid rgba(129,140,248,0.30);  color: #a5b4fc; }
+  .summary-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
-  /* ─── Report badge variants (className set by JS) ── */
-  .badge-free { background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.30); color: #7dd3fc; }
-  .badge-paid { background: rgba(129,140,248,0.15); border: 1px solid rgba(129,140,248,0.30); color: #a5b4fc; }
-
-  /* ─── Results list ───────────────────────────────── */
+  /* ─── Results list ──────────────────────────────────────────────── */
   .results-list { display: flex; flex-direction: column; gap: 2rem; }
 
-  /* ─── Risk section block ─────────────────────────── */
-  .risk-section {
-    border-radius: 12px;
-    overflow: hidden;
-    border: 2px solid;
-  }
-
-  /* Section border colors — high opacity so they're clearly visible on dark bg */
+  /* ─── Risk sections ─────────────────────────────────────────────── */
+  .risk-section { border-radius: 12px; overflow: hidden; border: 2px solid; }
   .risk-section-critical { border-color: rgba(239,68,68,0.80); }
   .risk-section-high     { border-color: rgba(249,115,22,0.75); }
-  .risk-section-medium   { border-color: rgba(234,179,8,0.70); }
+  .risk-section-medium   { border-color: rgba(234,179,8,0.70);  }
   .risk-section-low      { border-color: rgba(59,130,246,0.65); }
-  .risk-section-pass     { border-color: rgba(34,197,94,0.60); }
+  .risk-section-pass     { border-color: rgba(34,197,94,0.60);  }
   .risk-section-na       { border-color: rgba(100,116,139,0.45); }
 
-  /* Section header band */
-  .risk-header {
-    display: flex;
-    align-items: center;
-    gap: 0.9rem;
-    padding: 0.95rem 1.25rem;
-    border-bottom: 1px solid rgba(255,255,255,0.10);
-  }
-
-  /* Header gradient backgrounds — much more opaque so color is obvious */
-  .risk-critical {
-    background: linear-gradient(90deg, rgba(239,68,68,0.55) 0%, rgba(239,68,68,0.30) 100%);
-    color: #fca5a5;
-  }
-  .risk-high {
-    background: linear-gradient(90deg, rgba(249,115,22,0.55) 0%, rgba(249,115,22,0.28) 100%);
-    color: #fdba74;
-  }
-  .risk-medium {
-    background: linear-gradient(90deg, rgba(234,179,8,0.52) 0%, rgba(234,179,8,0.25) 100%);
-    color: #fde68a;
-  }
-  .risk-low {
-    background: linear-gradient(90deg, rgba(59,130,246,0.52) 0%, rgba(59,130,246,0.25) 100%);
-    color: #93c5fd;
-  }
-  .risk-pass {
-    background: linear-gradient(90deg, rgba(34,197,94,0.48) 0%, rgba(34,197,94,0.22) 100%);
-    color: #86efac;
-  }
-  .risk-na {
-    background: linear-gradient(90deg, rgba(100,116,139,0.40) 0%, rgba(100,116,139,0.18) 100%);
-    color: #94a3b8;
-  }
+  .risk-header { display: flex; align-items: center; gap: 0.9rem; padding: 0.95rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.10); }
+  .risk-critical { background: linear-gradient(90deg, rgba(239,68,68,0.55) 0%, rgba(239,68,68,0.30) 100%); color: #fca5a5; }
+  .risk-high     { background: linear-gradient(90deg, rgba(249,115,22,0.55) 0%, rgba(249,115,22,0.28) 100%); color: #fdba74; }
+  .risk-medium   { background: linear-gradient(90deg, rgba(234,179,8,0.52)  0%, rgba(234,179,8,0.25) 100%);  color: #fde68a; }
+  .risk-low      { background: linear-gradient(90deg, rgba(59,130,246,0.52) 0%, rgba(59,130,246,0.25) 100%); color: #93c5fd; }
+  .risk-pass     { background: linear-gradient(90deg, rgba(34,197,94,0.48)  0%, rgba(34,197,94,0.22) 100%);  color: #86efac; }
+  .risk-na       { background: linear-gradient(90deg, rgba(100,116,139,0.40) 0%, rgba(100,116,139,0.18) 100%); color: #94a3b8; }
 
   .risk-hicon {
-    width: 30px;
-    height: 30px;
-    border-radius: 7px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.95rem;
-    font-weight: 900;
-    flex-shrink: 0;
+    width: 30px; height: 30px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.95rem; font-weight: 900; flex-shrink: 0;
   }
-  .risk-critical .risk-hicon { background: rgba(239,68,68,0.55); color: #fca5a5; }
-  .risk-high     .risk-hicon { background: rgba(249,115,22,0.55); color: #fdba74; }
-  .risk-medium   .risk-hicon { background: rgba(234,179,8,0.50);  color: #fde047; }
-  .risk-low      .risk-hicon { background: rgba(59,130,246,0.50); color: #93c5fd; }
-  .risk-pass     .risk-hicon { background: rgba(34,197,94,0.45);  color: #86efac; }
+  .risk-critical .risk-hicon { background: rgba(239,68,68,0.55);   color: #fca5a5; }
+  .risk-high     .risk-hicon { background: rgba(249,115,22,0.55);  color: #fdba74; }
+  .risk-medium   .risk-hicon { background: rgba(234,179,8,0.50);   color: #fde047; }
+  .risk-low      .risk-hicon { background: rgba(59,130,246,0.50);  color: #93c5fd; }
+  .risk-pass     .risk-hicon { background: rgba(34,197,94,0.45);   color: #86efac; }
   .risk-na       .risk-hicon { background: rgba(100,116,139,0.40); color: #cbd5e1; }
 
-  .risk-hlabel {
-    font-size: 0.75rem;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    flex: 1;
-  }
-
-  .risk-hcount {
-    font-size: 0.72rem;
-    font-weight: 800;
-    padding: 0.2em 0.85em;
-    border-radius: 9999px;
-    letter-spacing: 0.02em;
-  }
-  .risk-critical .risk-hcount { background: rgba(239,68,68,0.50); color: #fecaca; }
-  .risk-high     .risk-hcount { background: rgba(249,115,22,0.50); color: #fed7aa; }
-  .risk-medium   .risk-hcount { background: rgba(234,179,8,0.45);  color: #fef08a; }
-  .risk-low      .risk-hcount { background: rgba(59,130,246,0.45); color: #bfdbfe; }
-  .risk-pass     .risk-hcount { background: rgba(34,197,94,0.42);  color: #bbf7d0; }
+  .risk-hlabel { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; flex: 1; }
+  .risk-hcount { font-size: 0.72rem; font-weight: 800; padding: 0.2em 0.85em; border-radius: 9999px; letter-spacing: 0.02em; }
+  .risk-critical .risk-hcount { background: rgba(239,68,68,0.50);   color: #fecaca; }
+  .risk-high     .risk-hcount { background: rgba(249,115,22,0.50);  color: #fed7aa; }
+  .risk-medium   .risk-hcount { background: rgba(234,179,8,0.45);   color: #fef08a; }
+  .risk-low      .risk-hcount { background: rgba(59,130,246,0.45);  color: #bfdbfe; }
+  .risk-pass     .risk-hcount { background: rgba(34,197,94,0.42);   color: #bbf7d0; }
   .risk-na       .risk-hcount { background: rgba(100,116,139,0.38); color: #e2e8f0; }
 
-  /* Cards wrapper — subtle per-color tint so sections feel distinct */
   .risk-cards-critical { background: rgba(239,68,68,0.05);  }
   .risk-cards-high     { background: rgba(249,115,22,0.05); }
   .risk-cards-medium   { background: rgba(234,179,8,0.04);  }
@@ -756,47 +1079,33 @@ const PAID_CHECK_PREVIEWS = [
   .risk-cards-pass     { background: rgba(34,197,94,0.04);  }
   .risk-cards-na       { background: rgba(100,116,139,0.04); }
 
-  /* Individual result card */
+  /* ─── Cards ─────────────────────────────────────────────────────── */
   .result-card {
-    background: transparent;
-    border: none;
+    background: transparent; border: none;
     border-top: 1px solid rgba(255,255,255,0.06);
-    overflow: hidden;
-    transition: background 0.12s;
+    overflow: hidden; transition: background 0.12s;
   }
   .result-card:first-child { border-top: none; }
   .result-card.expanded { background: rgba(0,0,0,0.25); }
 
-  /* Left accent stripe — vivid so it's unmissable */
   .risk-cards-critical .result-card { border-left: 3px solid rgba(239,68,68,0.85); }
   .risk-cards-high     .result-card { border-left: 3px solid rgba(249,115,22,0.80); }
-  .risk-cards-medium   .result-card { border-left: 3px solid rgba(234,179,8,0.75); }
+  .risk-cards-medium   .result-card { border-left: 3px solid rgba(234,179,8,0.75);  }
   .risk-cards-low      .result-card { border-left: 3px solid rgba(59,130,246,0.75); }
-  .risk-cards-pass     .result-card { border-left: 3px solid rgba(34,197,94,0.70); }
+  .risk-cards-pass     .result-card { border-left: 3px solid rgba(34,197,94,0.70);  }
   .risk-cards-na       .result-card { border-left: 3px solid rgba(100,116,139,0.50); }
 
-  /* Card row */
-  .result-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
-  }
+  /* Top findings section also needs left borders */
+  .top-findings-list .result-card { border-left: 3px solid rgba(249,115,22,0.70); }
+
+  .result-row { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem 1.25rem; }
   .result-row.expandable { cursor: pointer; user-select: none; }
   .result-row.expandable:hover { background: rgba(255,255,255,0.03); }
 
-  /* Status dot */
   .status-dot {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.82rem;
-    font-weight: 800;
-    flex-shrink: 0;
-    margin-top: 0.1rem;
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.82rem; font-weight: 800; flex-shrink: 0; margin-top: 0.1rem;
   }
   .status-dot.status-pass  { background: rgba(52,211,153,0.18);  color: #34d399; border: 1.5px solid rgba(52,211,153,0.40); }
   .status-dot.status-fail  { background: rgba(248,113,113,0.18); color: #f87171; border: 1.5px solid rgba(248,113,113,0.40); }
@@ -804,107 +1113,67 @@ const PAID_CHECK_PREVIEWS = [
   .status-dot.status-info  { background: rgba(56,189,248,0.18);  color: #38bdf8; border: 1.5px solid rgba(56,189,248,0.40); }
   .status-dot.status-error { background: rgba(71,85,105,0.25);   color: #64748b; border: 1.5px solid rgba(71,85,105,0.40); }
 
-  /* Card body */
-  .result-body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .result-header-row {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    flex-wrap: wrap;
-  }
-
-  .check-name {
-    font-size: 0.92rem;
-    font-weight: 600;
-    color: #e2e8f0;
-    line-height: 1.3;
-  }
+  .result-body { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; min-width: 0; }
+  .result-header-row { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
+  .check-name { font-size: 0.92rem; font-weight: 600; color: #e2e8f0; line-height: 1.3; }
+  .check-finding { font-size: 0.855rem; color: #94a3b8; line-height: 1.5; }
 
   .sev-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3em;
-    font-size: 0.62rem;
-    font-weight: 800;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    padding: 0.2em 0.65em;
-    border-radius: 4px;
-    flex-shrink: 0;
-    line-height: 1.4;
+    display: inline-flex; align-items: center; gap: 0.3em;
+    font-size: 0.62rem; font-weight: 800; letter-spacing: 0.07em;
+    text-transform: uppercase; padding: 0.2em 0.65em; border-radius: 4px; flex-shrink: 0; line-height: 1.4;
   }
   .sev-icon { font-size: 0.6em; }
-  .sev-critical { background: rgba(239,68,68,0.20);  border: 1px solid rgba(239,68,68,0.50);  color: #fca5a5; }
-  .sev-high     { background: rgba(249,115,22,0.20); border: 1px solid rgba(249,115,22,0.50); color: #fdba74; }
-  .sev-medium   { background: rgba(234,179,8,0.18);  border: 1px solid rgba(234,179,8,0.50);  color: #fde68a; }
-  .sev-low      { background: rgba(59,130,246,0.18); border: 1px solid rgba(59,130,246,0.50); color: #93c5fd; }
-  .sev-info     { background: rgba(100,116,139,0.15); border: 1px solid rgba(100,116,139,0.35); color: #94a3b8; }
+  .sev-critical { background: rgba(239,68,68,0.20);   border: 1px solid rgba(239,68,68,0.50);   color: #fca5a5; }
+  .sev-high     { background: rgba(249,115,22,0.20);  border: 1px solid rgba(249,115,22,0.50);  color: #fdba74; }
+  .sev-medium   { background: rgba(234,179,8,0.18);   border: 1px solid rgba(234,179,8,0.50);   color: #fde68a; }
+  .sev-low      { background: rgba(59,130,246,0.18);  border: 1px solid rgba(59,130,246,0.50);  color: #93c5fd; }
+  .sev-informational { background: rgba(100,116,139,0.15); border: 1px solid rgba(100,116,139,0.35); color: #94a3b8; }
   .sev-na       { background: rgba(100,116,139,0.12); border: 1px solid rgba(100,116,139,0.28); color: #64748b; }
 
-  .check-finding {
-    font-size: 0.855rem;
-    color: #94a3b8;
-    line-height: 1.5;
+  .conf-badge {
+    font-size: 0.60rem; font-weight: 600; color: #64748b;
+    background: rgba(100,116,139,0.10); border: 1px solid rgba(100,116,139,0.22);
+    padding: 0.18em 0.55em; border-radius: 4px; white-space: nowrap;
   }
 
-  /* Inline reference pills (visible without expanding) */
-  .inline-refs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: 0.4rem;
-  }
+  /* Inline refs */
+  .inline-refs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
   .inline-ref {
-    font-size: 0.68rem;
-    font-weight: 500;
-    color: #a5b4fc;
-    background: rgba(129,140,248,0.10);
-    border: 1px solid rgba(129,140,248,0.25);
-    border-radius: 4px;
-    padding: 0.18em 0.6em;
-    text-decoration: none;
-    white-space: nowrap;
-    line-height: 1.5;
+    font-size: 0.68rem; font-weight: 500; color: #a5b4fc;
+    background: rgba(129,140,248,0.10); border: 1px solid rgba(129,140,248,0.25);
+    border-radius: 4px; padding: 0.18em 0.6em; text-decoration: none; white-space: nowrap; line-height: 1.5;
     transition: background 0.12s, border-color 0.12s;
   }
   .inline-ref:hover { background: rgba(129,140,248,0.20); border-color: rgba(129,140,248,0.50); text-decoration: underline; }
 
-  /* Expand arrow */
-  .expand-arrow {
-    font-size: 0.75rem;
-    color: #475569;
-    flex-shrink: 0;
-    margin-top: 0.35rem;
-    padding: 0.2rem 0.3rem;
-    transition: color 0.12s;
-  }
+  .expand-arrow { font-size: 0.75rem; color: #475569; flex-shrink: 0; margin-top: 0.35rem; padding: 0.2rem 0.3rem; transition: color 0.12s; }
   .result-row.expandable:hover .expand-arrow { color: #94a3b8; }
 
-  /* ─── Expanded detail panel ─────────────────────── */
+  /* ─── Detail panel ───────────────────────────────────────────────── */
   .result-detail {
     padding: 1.25rem 1.25rem 1.25rem 4rem;
     border-top: 1px solid rgba(255,255,255,0.06);
     background: rgba(0,0,0,0.20);
   }
+  .detail-text { font-size: 0.84rem; color: #94a3b8; line-height: 1.75; margin: 0 0 0.75rem; }
 
-  .detail-text {
-    font-size: 0.84rem;
-    color: #94a3b8;
-    line-height: 1.75;
-    margin: 0 0 0.75rem;
+  .impact-block {
+    font-size: 0.84rem; color: #94a3b8; line-height: 1.7;
+    padding: 0.85rem 1.1rem;
+    background: rgba(251,191,36,0.06);
+    border: 1px solid rgba(251,191,36,0.18);
+    border-left: 3px solid rgba(251,191,36,0.70);
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 0.75rem;
+  }
+  .impact-label {
+    display: block; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.10em;
+    text-transform: uppercase; color: #fbbf24; margin-bottom: 0.4rem;
   }
 
   .remediation {
-    font-size: 0.84rem;
-    color: #94a3b8;
-    line-height: 1.7;
+    font-size: 0.84rem; color: #94a3b8; line-height: 1.7;
     padding: 1rem 1.1rem;
     background: rgba(34,197,94,0.07);
     border: 1px solid rgba(34,197,94,0.20);
@@ -912,112 +1181,62 @@ const PAID_CHECK_PREVIEWS = [
     border-radius: 0 8px 8px 0;
     margin-bottom: 0.75rem;
   }
-  .remed-label {
-    display: block;
-    font-size: 0.65rem;
-    font-weight: 800;
-    letter-spacing: 0.10em;
-    text-transform: uppercase;
-    color: #4ade80;
-    margin-bottom: 0.45rem;
-  }
+  .remed-label { display: block; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.10em; text-transform: uppercase; color: #4ade80; margin-bottom: 0.45rem; }
 
-  /* Error banner */
+  /* OWASP / CWE mapping badges */
+  .mappings-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+  .mapping-tag { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; padding: 0.2em 0.65em; border-radius: 4px; }
+  .owasp-tag { background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.28); color: #6ee7b7; }
+  .cwe-tag   { background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.28); color: #7dd3fc; }
+
   .error-banner {
-    display: flex;
-    gap: 0.85rem;
-    align-items: flex-start;
+    display: flex; gap: 0.85rem; align-items: flex-start;
     padding: 0.9rem 1rem;
-    background: rgba(71,85,105,0.15);
-    border: 1px solid rgba(71,85,105,0.30);
-    border-left: 3px solid #475569;
-    border-radius: 0 8px 8px 0;
-    margin-bottom: 0.75rem;
+    background: rgba(71,85,105,0.15); border: 1px solid rgba(71,85,105,0.30); border-left: 3px solid #475569;
+    border-radius: 0 8px 8px 0; margin-bottom: 0.75rem;
   }
   .error-banner-icon {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: rgba(71,85,105,0.40);
-    color: #94a3b8;
-    font-size: 0.72rem;
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-top: 0.05rem;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(71,85,105,0.40); color: #94a3b8;
+    font-size: 0.72rem; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 0.05rem;
   }
   .error-banner-title { font-size: 0.82rem; font-weight: 700; color: #94a3b8; margin-bottom: 0.2rem; }
   .error-banner-body  { font-size: 0.79rem; color: #64748b; line-height: 1.6; }
 
-  /* Full references */
-  .ref-row {
-    margin-top: 0.75rem;
-    padding-top: 0.85rem;
-    border-top: 1px solid rgba(255,255,255,0.06);
-  }
-  .ref-label {
-    display: block;
-    font-size: 0.62rem;
-    font-weight: 800;
-    letter-spacing: 0.10em;
-    text-transform: uppercase;
-    color: #475569;
-    margin-bottom: 0.5rem;
-  }
+  .ref-row { margin-top: 0.75rem; padding-top: 0.85rem; border-top: 1px solid rgba(255,255,255,0.06); }
+  .ref-label { display: block; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.10em; text-transform: uppercase; color: #475569; margin-bottom: 0.5rem; }
   .ref-links { display: flex; flex-wrap: wrap; gap: 0.45rem; }
   .ref-link {
-    font-size: 0.73rem;
-    font-weight: 500;
-    color: #818cf8;
-    background: rgba(129,140,248,0.12);
-    border: 1px solid rgba(129,140,248,0.28);
-    border-radius: 5px;
-    padding: 0.28em 0.75em;
-    text-decoration: none;
-    white-space: nowrap;
-    line-height: 1.5;
+    font-size: 0.73rem; font-weight: 500; color: #818cf8;
+    background: rgba(129,140,248,0.12); border: 1px solid rgba(129,140,248,0.28);
+    border-radius: 5px; padding: 0.28em 0.75em; text-decoration: none; white-space: nowrap; line-height: 1.5;
     transition: background 0.12s, border-color 0.12s;
   }
   .ref-link:hover { background: rgba(129,140,248,0.22); border-color: rgba(129,140,248,0.55); text-decoration: underline; }
 
-  /* ─── Paid teaser ────────────────────────────────── */
+  /* ─── Paid teaser ────────────────────────────────────────────────── */
   .paid-teaser {
-    margin-top: 2rem;
-    background: var(--bg-card);
-    border: 1.5px solid rgba(129,140,248,0.30);
-    border-radius: 12px;
-    overflow: hidden;
+    margin-top: 2rem; background: var(--bg-card);
+    border: 1.5px solid rgba(129,140,248,0.30); border-radius: 12px; overflow: hidden;
   }
-
   .teaser-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1.35rem 1.5rem;
+    display: flex; align-items: flex-start; gap: 1rem; padding: 1.35rem 1.5rem;
     background: linear-gradient(90deg, rgba(129,140,248,0.12) 0%, rgba(129,140,248,0.05) 100%);
     border-bottom: 1px solid rgba(129,140,248,0.15);
   }
   .lock-icon { font-size: 1.4rem; color: #818cf8; flex-shrink: 0; margin-top: 0.1rem; }
   .teaser-title { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 0.3rem; }
   .teaser-sub   { font-size: 0.82rem; color: #64748b; line-height: 1.5; }
-
   .teaser-list {
     list-style: none;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-    gap: 0;
-    padding: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 0; padding: 0;
   }
   .teaser-item {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.65rem 1.5rem;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-    opacity: 0.55;
-    transition: opacity 0.15s;
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.65rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.04);
+    opacity: 0.55; transition: opacity 0.15s;
   }
   .teaser-item:hover { opacity: 0.75; }
   .lock-pill { font-size: 0.7rem; flex-shrink: 0; }
@@ -1025,23 +1244,14 @@ const PAID_CHECK_PREVIEWS = [
   .teaser-cat { font-size: 0.65rem; color: #475569; white-space: nowrap; }
   .teaser-btn { margin: 1.25rem 1.5rem; }
 
-  /* ─── Utilities ──────────────────────────────────── */
+  /* ─── Utilities ──────────────────────────────────────────────────── */
   [hidden] { display: none !important; }
 
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    white-space: nowrap;
-  }
-
-  /* ─── Mobile (dynamic elements) ─────────────────── */
   @media (max-width: 768px) {
     .result-detail { padding-left: 1.25rem; }
-    .risk-header  { padding: 0.85rem 1rem; }
-    .result-row   { padding: 0.9rem 1rem; }
-    .inline-refs  { gap: 0.25rem; }
+    .risk-header   { padding: 0.85rem 1rem; }
+    .result-row    { padding: 0.9rem 1rem; }
+    .inline-refs   { gap: 0.25rem; }
+    .sev-breakdown { gap: 0.75rem; }
   }
 </style>
