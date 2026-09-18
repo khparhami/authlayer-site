@@ -1,4 +1,7 @@
 import type { SecurityTest, ScanContext, ScanResult, Finding, FindingClassification } from './types.js';
+import type { Asset, AttackSurface } from '../assessment/types.js';
+import { runPipeline } from '../assessment/engine.js';
+import { correlateFindings } from '../assessment/correlation.js';
 import { DNS_TESTS } from './dns.js';
 import { TRANSPORT_TESTS } from './transport.js';
 import { COOKIE_TESTS } from './cookies.js';
@@ -6,10 +9,11 @@ import { HEADER_TESTS } from './headers.js';
 import { EMAIL_TESTS } from './email.js';
 import { OAUTH_TESTS } from './oauth.js';
 import { EXPOSURE_TESTS } from './exposure.js';
+import { API_TESTS } from './api.js';
 
 // ─── Finding classification ──────────────────────────────────────────────────
 
-function classifyFinding(f: Finding): FindingClassification {
+export function classifyFinding(f: Finding): FindingClassification {
   if (f.status === 'pass')                                return 'passed';
   if (f.status === 'error')                               return 'not_checked';
   if (f.status === 'inconclusive')                        return 'inconclusive';
@@ -33,7 +37,6 @@ function classifyFinding(f: Finding): FindingClassification {
 
 // ─── Test tiers ──────────────────────────────────────────────────────────────
 
-// Free tier: surface-level passive checks
 export const FREE_TESTS: SecurityTest[] = [
   ...DNS_TESTS,
   ...TRANSPORT_TESTS,
@@ -44,7 +47,6 @@ export const FREE_TESTS: SecurityTest[] = [
   HEADER_TESTS.find(t => t.test_id === 'API-008')!,
 ];
 
-// Paid tier: full check suite
 export const PAID_TESTS: SecurityTest[] = [
   ...DNS_TESTS,
   ...TRANSPORT_TESTS,
@@ -53,6 +55,7 @@ export const PAID_TESTS: SecurityTest[] = [
   ...EMAIL_TESTS,
   ...OAUTH_TESTS,
   ...EXPOSURE_TESTS,
+  ...API_TESTS,
 ];
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────
@@ -78,33 +81,61 @@ function calculateGrade(score: number): string {
   return 'F';
 }
 
+// ─── Attack surface builder ───────────────────────────────────────────────────
+
+function buildAttackSurface(ctx: ScanContext): { surface: AttackSurface; assetsProvided: Asset[] } {
+  const assetsProvided: Asset[] = [
+    { id: `asset-${ctx.domain}`, type: 'website', hostname: ctx.domain, source: 'user_provided' },
+  ];
+  if (ctx.authUrl) {
+    try {
+      const h = new URL(ctx.authUrl).hostname;
+      if (h !== ctx.domain) {
+        assetsProvided.push({ id: `asset-${h}`, type: 'auth_service', hostname: h, url: ctx.authUrl, source: 'user_provided' });
+      }
+    } catch { /* invalid URL, skip */ }
+  }
+  if (ctx.apiUrl) {
+    try {
+      const h = new URL(ctx.apiUrl).hostname;
+      assetsProvided.push({ id: `asset-${h}`, type: 'api', hostname: h, url: ctx.apiUrl, source: 'user_provided' });
+    } catch { /* invalid URL, skip */ }
+  }
+  const surface: AttackSurface = {
+    assetsProvided,
+    assetsDiscovered: [],
+    assetsTested: assetsProvided,
+    endpoints: [],
+  };
+  return { surface, assetsProvided };
+}
+
 // ─── Scan runner ─────────────────────────────────────────────────────────────
 
 export async function runScan(
   ctx: ScanContext,
   tests: SecurityTest[],
 ): Promise<ScanResult> {
-  const settled = await Promise.allSettled(tests.map(t => t.run(ctx)));
+  const assessmentId = `asmt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
-  const findings: Finding[] = settled.map((r, i) => {
-    const t = tests[i];
-    const raw: Finding = r.status === 'fulfilled'
-      ? r.value
-      : {
-          test_id: t.test_id,
-          name: t.name,
-          category: t.category,
-          status: 'error',
-          severity: 'informational',
-          confidence: 'informational',
-          finding: 'Check threw an unexpected error',
-          errorReason: 'An internal error prevented this check from running.',
-        };
-    return { ...raw, classification: classifyFinding(raw) };
-  });
+  // Append API tests for free tier when an apiUrl is provided
+  const apiTestIds = new Set(API_TESTS.map(t => t.test_id));
+  const hasApiTests = tests.some(t => apiTestIds.has(t.test_id));
+  const effectiveTests = (ctx.apiUrl && !hasApiTests)
+    ? [...tests, ...API_TESTS]
+    : tests;
 
-  const score = calculateScore(findings);
+  const { findings: rawFindings, auditLog, durationMs, httpRequestCount } = await runPipeline(
+    ctx, effectiveTests, { assessmentId, concurrency: 6, retries: 2, retryDelayMs: 350 }
+  );
+
+  const findings: Finding[] = rawFindings.map(raw => ({ ...raw, classification: classifyFinding(raw) }));
+  const correlatedFindings = correlateFindings(findings);
+
+  const score = calculateScore(correlatedFindings);
   const grade = calculateGrade(score);
+
+  const { surface, assetsProvided } = buildAttackSurface(ctx);
 
   const SORDER: Record<string, number>    = { critical: 0, high: 1, medium: 2, low: 3, informational: 4 };
   const CONF_ORDER: Record<string, number> = { confirmed: 0, high: 1, medium: 2, low: 3, informational: 4 };
@@ -114,8 +145,12 @@ export async function runScan(
     inconclusive: 4, passed: 5, not_checked: 6,
   };
 
-  // Immediate Attention: only confirmed vulnerabilities with high/critical severity
-  const topFindings = findings
+  const sortedFindings = [...correlatedFindings].sort((a, b) =>
+    (CORDER[a.classification ?? 'not_checked'] ?? 9) - (CORDER[b.classification ?? 'not_checked'] ?? 9) ||
+    (SORDER[a.severity] ?? 9) - (SORDER[b.severity] ?? 9)
+  );
+
+  const topFindings = correlatedFindings
     .filter(f =>
       f.classification === 'confirmed_vulnerability' &&
       (f.severity === 'critical' || f.severity === 'high')
@@ -129,12 +164,19 @@ export async function runScan(
   return {
     domain: ctx.domain,
     report: tests === FREE_TESTS ? 'free' : 'paid',
-    assetsDiscovered: 1 + (ctx.additionalAssets?.length ?? 0),
-    endpointsTested: Math.max(tests.length, 14),
-    testsRun: tests.length,
+    assessmentId,
+    assetsDiscovered: assetsProvided.length,
+    assetsProvided: assetsProvided.length,
+    assetsTested: assetsProvided.length,
+    endpointsTested: httpRequestCount,
+    testsRun: effectiveTests.length,
+    httpRequestCount,
+    durationMs,
     score,
     grade,
-    findings,
+    findings: sortedFindings,
     topFindings,
+    attackSurface: surface,
+    auditLog,
   };
 }

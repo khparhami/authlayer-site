@@ -44,6 +44,8 @@ export interface Finding {
   references?: Reference[];
   errorReason?: string;
   reasonCode?: string;
+  asset_id?: string;
+  endpoint?: string;
 }
 
 export interface ScanContext {
@@ -57,13 +59,20 @@ export interface ScanContext {
 export interface ScanResult {
   domain: string;
   report: 'free' | 'paid';
+  assessmentId: string;
   assetsDiscovered: number;
+  assetsProvided: number;
+  assetsTested: number;
   endpointsTested: number;
   testsRun: number;
+  httpRequestCount: number;
+  durationMs: number;
   score: number;
   grade: string;
   findings: Finding[];
   topFindings: Finding[];
+  attackSurface?: import('../assessment/types.js').AttackSurface;
+  auditLog?: import('../assessment/types.js').AuditEntry[];
 }
 
 export interface SecurityTest {
