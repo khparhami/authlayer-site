@@ -10,9 +10,11 @@ import { EXPOSURE_TESTS } from './exposure.js';
 // ─── Finding classification ──────────────────────────────────────────────────
 
 function classifyFinding(f: Finding): FindingClassification {
-  if (f.status === 'pass')  return 'passed';
-  if (f.status === 'error') return 'not_checked';
-  if (f.status === 'info')  return 'security_observation';
+  if (f.status === 'pass')                                return 'passed';
+  if (f.status === 'error')                               return 'not_checked';
+  if (f.status === 'inconclusive')                        return 'inconclusive';
+  if (f.status === 'not_run' || f.status === 'not_applicable') return 'not_checked';
+  if (f.status === 'info')                                return 'security_observation';
 
   const highSev  = f.severity === 'critical' || f.severity === 'high';
   const highConf = f.confidence === 'confirmed' || f.confidence === 'high';
@@ -24,7 +26,6 @@ function classifyFinding(f: Finding): FindingClassification {
   if (f.status === 'fail' && f.severity === 'medium') return 'security_observation';
   if (f.status === 'fail' && lowSev)              return 'hardening_recommendation';
 
-  // warn cases
   if (f.status === 'warn' && highSev)             return 'potential_vulnerability';
   if (f.status === 'warn' && f.severity === 'medium') return 'security_observation';
   return 'hardening_recommendation';
@@ -110,13 +111,16 @@ export async function runScan(
   const CORDER: Record<string, number> = {
     confirmed_vulnerability: 0, potential_vulnerability: 1,
     security_observation: 2, hardening_recommendation: 3,
-    passed: 4, not_checked: 5,
+    inconclusive: 4, passed: 5, not_checked: 6,
   };
 
+  // Immediate Attention: only confirmed vulnerabilities with high/critical severity
   const topFindings = findings
-    .filter(f => f.classification === 'confirmed_vulnerability' || f.classification === 'potential_vulnerability')
+    .filter(f =>
+      f.classification === 'confirmed_vulnerability' &&
+      (f.severity === 'critical' || f.severity === 'high')
+    )
     .sort((a, b) =>
-      (CORDER[a.classification ?? 'not_checked'] ?? 9) - (CORDER[b.classification ?? 'not_checked'] ?? 9) ||
       (SORDER[a.severity] ?? 9) - (SORDER[b.severity] ?? 9) ||
       (CONF_ORDER[a.confidence] ?? 9) - (CONF_ORDER[b.confidence] ?? 9)
     )

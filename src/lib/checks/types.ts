@@ -1,4 +1,4 @@
-export type FindingStatus = 'pass' | 'fail' | 'warn' | 'info' | 'error';
+export type FindingStatus = 'pass' | 'fail' | 'warn' | 'info' | 'error' | 'inconclusive' | 'not_run' | 'not_applicable';
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'informational';
 export type Confidence = 'confirmed' | 'high' | 'medium' | 'low' | 'informational';
 export type Category =
@@ -18,7 +18,8 @@ export type FindingClassification =
   | 'security_observation'
   | 'hardening_recommendation'
   | 'passed'
-  | 'not_checked';
+  | 'not_checked'
+  | 'inconclusive';
 
 export interface Reference {
   label: string;
@@ -42,6 +43,7 @@ export interface Finding {
   cwe?: string;
   references?: Reference[];
   errorReason?: string;
+  reasonCode?: string;
 }
 
 export interface ScanContext {

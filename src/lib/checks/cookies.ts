@@ -4,6 +4,40 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 6000):
   return fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
 }
 
+// Patterns for cookie names that are likely to be auth/session-sensitive
+const SENSITIVE_NAME_PATTERNS: RegExp[] = [
+  /^session/i, /^sess(?:ion)?[-_]?(?:id)?$/i,
+  /^auth/i, /^jwt$/i, /^token$/i,
+  /access[-_]?token/i, /refresh[-_]?token/i,
+  /bearer[-_]?token/i, /id[-_]?token/i,
+  /^sid$/i, /^uid$/i,
+  /^login$/i, /^credential/i, /^identity[-_]?/i,
+  /^remember[-_]?me$/i, /PHPSESSID/i, /JSESSIONID/i,
+  /ASP\.NET_SessionId/i, /__session/i,
+];
+
+function isSensitiveCookie(name: string): boolean {
+  return SENSITIVE_NAME_PATTERNS.some(p => p.test(name));
+}
+
+function cookieName(raw: string): string {
+  return raw.split('=')[0].trim();
+}
+
+function hasCookieAttr(raw: string, attr: string): boolean {
+  const re = new RegExp('(?:^|;)\\s*' + attr.replace(/-/, '[-]?') + '\\b', 'i');
+  return re.test(raw);
+}
+
+function cookieEvidence(raw: string): string {
+  const name = cookieName(raw);
+  const secure   = hasCookieAttr(raw, 'Secure')   ? 'present' : 'missing';
+  const httpOnly = hasCookieAttr(raw, 'HttpOnly')  ? 'present' : 'missing';
+  const match = /samesite=([^\s;]+)/i.exec(raw);
+  const sameSite = match ? match[1] : 'not set';
+  return `Cookie: ${name}\nSecure: ${secure}\nHttpOnly: ${httpOnly}\nSameSite: ${sameSite}`;
+}
+
 function gatherCookies(domain: string, authUrl: string | null, extraPaths: string[]): Promise<string[]> {
   const urls = [...new Set([
     ...(authUrl ? [authUrl] : []),
@@ -48,19 +82,47 @@ const cookieSecure: SecurityTest = {
       if (allCookies.length === 0) {
         return { ...base, status: 'info', finding: 'No Set-Cookie headers found on main page or common auth paths', confidence: 'informational' };
       }
-      const missing: string[] = [];
+
+      const sessionMissing: Array<{ name: string; missing: string[]; evidence: string }> = [];
+      const otherMissing: Array<{ name: string; missing: string[] }> = [];
+
       for (const cookie of allCookies) {
-        const lower = cookie.toLowerCase();
-        if (!lower.includes('secure')) missing.push('Secure');
-        if (!lower.includes('httponly')) missing.push('HttpOnly');
+        const name = cookieName(cookie);
+        const missingFlags: string[] = [];
+        if (!hasCookieAttr(cookie, 'Secure'))   missingFlags.push('Secure');
+        if (!hasCookieAttr(cookie, 'HttpOnly'))  missingFlags.push('HttpOnly');
+        if (missingFlags.length === 0) continue;
+
+        if (isSensitiveCookie(name)) {
+          sessionMissing.push({ name, missing: missingFlags, evidence: cookieEvidence(cookie) });
+        } else {
+          otherMissing.push({ name, missing: missingFlags });
+        }
       }
-      const unique = [...new Set(missing)];
-      if (unique.length > 0) {
-        return { ...base, status: 'fail', finding: `Cookies found missing: ${unique.join(', ')} flag${unique.length > 1 ? 's' : ''}` };
+
+      if (sessionMissing.length > 0) {
+        const names = sessionMissing.map(c => c.name).join(', ');
+        const flags = [...new Set(sessionMissing.flatMap(c => c.missing))];
+        return {
+          ...base, status: 'fail',
+          finding: `Session/auth cookie(s) missing ${flags.join(', ')} flag${flags.length > 1 ? 's' : ''}: ${names}`,
+          evidence: sessionMissing.map(c => c.evidence).join('\n\n'),
+          reasonCode: 'AUTH_COOKIE_MISSING_FLAGS',
+        };
+      }
+      if (otherMissing.length > 0) {
+        const names = otherMissing.map(c => c.name).join(', ');
+        return {
+          ...base, status: 'warn',
+          severity: 'low',
+          confidence: 'low',
+          finding: `Non-session cookie(s) missing security flags: ${names} — review if any carry sensitive data`,
+          reasonCode: 'COOKIE_MISSING_FLAGS_ROLE_UNKNOWN',
+        };
       }
       return { ...base, status: 'pass', finding: `All ${allCookies.length} cookie(s) have Secure and HttpOnly flags set` };
     } catch {
-      return { ...base, status: 'error', finding: 'Could not fetch cookies from auth paths', errorReason: 'Request failed or timed out.' };
+      return { ...base, status: 'inconclusive', finding: 'Could not fetch cookies from auth paths', errorReason: 'Request failed or timed out.', reasonCode: 'REQUEST_TIMEOUT' };
     }
   },
 };
@@ -96,15 +158,19 @@ const cookieSamesite: SecurityTest = {
         return lower.includes('samesite=none') && !lower.includes('secure');
       });
       if (noneUnsafe.length > 0) {
-        return { ...base, status: 'fail', finding: `${noneUnsafe.length} cookie(s) use SameSite=None without Secure — CSRF risk` };
+        return { ...base, status: 'fail', severity: 'medium', finding: `${noneUnsafe.length} cookie(s) use SameSite=None without Secure — cross-site requests will include these cookies`, reasonCode: 'SAMESITE_NONE_WITHOUT_SECURE' };
       }
       const noSameSite = allCookies.filter(c => !/samesite=/i.test(c));
       if (noSameSite.length > 0) {
-        return { ...base, status: 'warn', finding: `${noSameSite.length} cookie(s) have no explicit SameSite attribute — browsers default to Lax but explicit is better`, confidence: 'medium' };
+        return {
+          ...base, status: 'warn', severity: 'low', confidence: 'medium',
+          finding: `${noSameSite.length} cookie${noSameSite.length > 1 ? 's' : ''} do not explicitly specify a SameSite attribute. Modern browsers commonly default omitted SameSite to Lax. Explicitly setting SameSite makes the intended cross-site behaviour clearer and provides additional defence in depth.`,
+          reasonCode: 'SAMESITE_NOT_EXPLICIT',
+        };
       }
       return { ...base, status: 'pass', finding: 'All cookies have explicit SameSite attribute set appropriately' };
     } catch {
-      return { ...base, status: 'error', finding: 'Could not evaluate SameSite policy', errorReason: 'Request failed or timed out.' };
+      return { ...base, status: 'inconclusive', finding: 'Could not evaluate SameSite policy', errorReason: 'Request failed or timed out.', reasonCode: 'REQUEST_TIMEOUT' };
     }
   },
 };

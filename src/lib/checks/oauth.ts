@@ -25,12 +25,12 @@ const oidcDiscovery: SecurityTest = {
     };
     try {
       const res = await fetchWithTimeout(`https://${domain}/.well-known/openid-configuration`);
-      if (!res.ok) return { ...base, status: 'info', finding: 'No OIDC discovery endpoint found (not an identity provider, or hosted elsewhere)' };
+      if (!res.ok) return { ...base, status: 'inconclusive', finding: 'AuthLayer could not confirm an OIDC discovery endpoint. The endpoint may not exist, use a different location, or the request may have been blocked or unavailable.', reasonCode: 'ENDPOINT_NOT_FOUND' };
       const meta = await res.json() as Record<string, unknown>;
       const issuer = typeof meta.issuer === 'string' ? meta.issuer : 'unknown';
       return { ...base, status: 'info', finding: `OIDC discovery found — issuer: ${issuer}` };
     } catch {
-      return { ...base, status: 'info', finding: 'No OIDC discovery endpoint found or request failed' };
+      return { ...base, status: 'inconclusive', finding: 'AuthLayer could not confirm an OIDC discovery endpoint. The endpoint may not exist, use a different location, or the request may have been blocked or unavailable.', reasonCode: 'REQUEST_TIMEOUT' };
     }
   },
 };
@@ -135,9 +135,9 @@ const webauthnSupport: SecurityTest = {
     try {
       const res = await fetchWithTimeout(`https://${domain}/.well-known/webauthn`, {}, 5000);
       if (res.ok) return { ...base, status: 'pass', finding: 'WebAuthn /.well-known/webauthn endpoint is present' };
-      return { ...base, status: 'info', finding: 'No WebAuthn well-known endpoint detected — passkey support may still exist in the application', confidence: 'low' };
+      return { ...base, status: 'inconclusive', finding: 'AuthLayer could not determine whether WebAuthn/passkey authentication is supported. The absence of the well-known endpoint does not rule out native WebAuthn integration.', confidence: 'low', reasonCode: 'ENDPOINT_NOT_FOUND' };
     } catch {
-      return { ...base, status: 'info', finding: 'Could not check WebAuthn endpoint', confidence: 'low' };
+      return { ...base, status: 'inconclusive', finding: 'AuthLayer could not determine whether WebAuthn/passkey authentication is supported.', confidence: 'low', reasonCode: 'REQUEST_TIMEOUT' };
     }
   },
 };
@@ -306,9 +306,9 @@ const phishingResistance: SecurityTest = {
       if (idpSignal)      signals.push(`${idpSignal} (passkey-capable IdP detected)`);
       if (signals.length >= 2) return { ...base, status: 'pass', finding: `Phishing-resistant auth signals: ${signals.join(', ')}` };
       if (signals.length === 1) return { ...base, status: 'warn', finding: `Partial signal — ${signals[0]} detected but not confirmed end-to-end`, confidence: 'low' };
-      return { ...base, status: 'info', finding: 'No passkey or WebAuthn signals detected — login page may be a client-rendered SPA; manual verification recommended', confidence: 'low' };
+      return { ...base, status: 'inconclusive', finding: 'AuthLayer could not confirm phishing-resistant authentication capabilities from externally observable signals. Lack of detectable WebAuthn signals does not prove that passkeys are unavailable.', confidence: 'low', reasonCode: 'SIGNALS_INSUFFICIENT' };
     } catch {
-      return { ...base, status: 'error', finding: 'Could not evaluate phishing-resistant authentication signals', errorReason: 'Request failed or timed out.' };
+      return { ...base, status: 'inconclusive', finding: 'AuthLayer could not evaluate phishing-resistant authentication signals.', errorReason: 'Request failed or timed out.', reasonCode: 'REQUEST_TIMEOUT' };
     }
   },
 };

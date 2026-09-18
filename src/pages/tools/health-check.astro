@@ -199,10 +199,24 @@ const PAID_CHECK_PREVIEWS = [
           <div class="summary-bar" id="summary-bar">
             <div class="summary-title" id="summary-title">External Security Assessment</div>
             <div class="summary-stats" id="summary-stats"></div>
+            <div class="coverage-metrics" id="coverage-metrics"></div>
             <div class="sev-breakdown" id="sev-breakdown"></div>
             <div class="score-indicator" id="score-indicator"></div>
             <div class="summary-chips" id="summary-chips"></div>
           </div>
+
+          <details class="limitations-section" id="limitations-section" hidden>
+            <summary class="limitations-title">Assessment limitations</summary>
+            <p class="limitations-body">This assessment evaluates externally observable security controls using unauthenticated, non-destructive techniques. Some security properties cannot be verified without authenticated access or application-specific workflows.</p>
+            <ul class="limitations-list">
+              <li>Authenticated API authorisation was not tested</li>
+              <li>BOLA/BFLA testing requires authorised test accounts</li>
+              <li>Internal network controls and application business logic were not assessed</li>
+              <li>Some authentication capabilities could not be determined from externally observable signals</li>
+              <li>Results represent the tested assets and paths at the time of assessment</li>
+              <li><strong>Inconclusive</strong> means the check ran but could not determine an answer — it is not the same as passing</li>
+            </ul>
+          </details>
 
           <!-- Top findings -->
           <div id="top-findings-section" class="top-findings-section" hidden>
@@ -280,6 +294,7 @@ const PAID_CHECK_PREVIEWS = [
 
   // ─── Constants ──────────────────────────────────────────────────────────────
   const CATEGORY_LABELS = {
+    dns:            'DNS Configuration',
     transport:      'Transport Security',
     cookies:        'Cookie Security',
     headers:        'HTTP Security Headers',
@@ -290,7 +305,7 @@ const PAID_CHECK_PREVIEWS = [
     authentication: 'Authentication',
   };
 
-  const STATUS_ICON  = { pass: '✓', fail: '✗', warn: '⚠', info: '●', error: '?' };
+  const STATUS_ICON  = { pass: '✓', fail: '✗', warn: '⚠', info: '●', error: '?', inconclusive: '~', not_run: '○', not_applicable: '○' };
 
   const SEV_ICON  = { critical: '◆', high: '▲', medium: '■', low: '▸', informational: '·' };
   const SEV_LABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', informational: 'Info' };
@@ -419,8 +434,6 @@ const PAID_CHECK_PREVIEWS = [
     summaryStats.innerHTML = `
       <span class="stat"><span class="stat-value">${assetsDiscovered}</span> asset${assetsDiscovered !== 1 ? 's' : ''}</span>
       <span class="stat-sep">·</span>
-      <span class="stat"><span class="stat-value">${endpointsTested}</span> endpoints tested</span>
-      <span class="stat-sep">·</span>
       <span class="stat"><span class="stat-value">${testsRun}</span> security tests</span>`;
 
     const sevRows = [
@@ -442,18 +455,34 @@ const PAID_CHECK_PREVIEWS = [
       </div>`
     ).join('');
 
-    const confirmedCount = findings.filter(f => f.classification === 'confirmed_vulnerability').length;
-    const potentialCount = findings.filter(f => f.classification === 'potential_vulnerability').length;
-    const passCount      = findings.filter(f => f.classification === 'passed').length;
-    const notChecked     = findings.filter(f => f.classification === 'not_checked').length;
+    const confirmedCount    = findings.filter(f => f.classification === 'confirmed_vulnerability').length;
+    const potentialCount    = findings.filter(f => f.classification === 'potential_vulnerability').length;
+    const passCount         = findings.filter(f => f.classification === 'passed').length;
+    const inconclusiveCount = findings.filter(f => f.classification === 'inconclusive').length;
+    const notChecked        = findings.filter(f => f.classification === 'not_checked').length;
+    const completedCount    = findings.filter(f => !['not_checked', 'inconclusive'].includes(f.classification ?? '')).length;
+    const coveragePct       = testsRun > 0 ? Math.round((completedCount / testsRun) * 100) : 0;
+
     summaryChips.innerHTML = [
       confirmedCount ? `<span class="chip chip-fail">${confirmedCount} confirmed vulnerability${confirmedCount > 1 ? 's' : ''}</span>` : '',
       potentialCount ? `<span class="chip chip-warn">${potentialCount} potential vulnerability${potentialCount > 1 ? 's' : ''}</span>` : '',
       !confirmedCount && !potentialCount ? `<span class="chip chip-pass">No confirmed vulnerabilities</span>` : '',
       `<span class="chip chip-pass">${passCount} passed</span>`,
-      notChecked ? `<span class="chip chip-err">${notChecked} not checked</span>` : '',
+      inconclusiveCount ? `<span class="chip chip-inconclusive">${inconclusiveCount} inconclusive</span>` : '',
+      notChecked        ? `<span class="chip chip-err">${notChecked} not checked</span>` : '',
       `<span class="chip ${report === 'paid' ? 'chip-paid' : 'chip-free'}">${report === 'paid' ? 'Deeper Assessment' : 'Surface Assessment'}</span>`,
     ].filter(Boolean).join('');
+
+    // Coverage metrics (primary display)
+    const coverageEl = document.getElementById('coverage-metrics');
+    if (coverageEl) {
+      coverageEl.innerHTML = `
+        <span class="cov-item"><span class="cov-val">${completedCount}</span> completed</span>
+        ${inconclusiveCount ? `<span class="cov-sep">·</span><span class="cov-item cov-inconclusive"><span class="cov-val">${inconclusiveCount}</span> inconclusive</span>` : ''}
+        ${notChecked ? `<span class="cov-sep">·</span><span class="cov-item cov-na"><span class="cov-val">${notChecked}</span> not run</span>` : ''}
+        <span class="cov-sep">·</span><span class="cov-item"><span class="cov-val">${coveragePct}%</span> coverage</span>
+      `;
+    }
 
     // Top findings
     if (topFindings?.length > 0) {
@@ -466,12 +495,13 @@ const PAID_CHECK_PREVIEWS = [
 
     // Classification-grouped full list (spec §13)
     const RISK_GROUPS = [
-      { key: 'confirmed',   label: 'Confirmed Vulnerabilities',   icon: '◆', color: '#ef4444' },
-      { key: 'potential',   label: 'Potential Vulnerabilities',   icon: '▲', color: '#f97316' },
-      { key: 'observation', label: 'Security Observations',       icon: '●', color: '#eab308' },
-      { key: 'hardening',   label: 'Hardening Recommendations',   icon: '◉', color: '#3b82f6' },
-      { key: 'pass',        label: 'Passed',                      icon: '✓', color: '#22c55e' },
-      { key: 'na',          label: 'Not Checked',                 icon: '○', color: '#64748b' },
+      { key: 'confirmed',    label: 'Confirmed Vulnerabilities',   icon: '◆', color: '#ef4444' },
+      { key: 'potential',    label: 'Potential Vulnerabilities',   icon: '▲', color: '#f97316' },
+      { key: 'observation',  label: 'Security Observations',       icon: '●', color: '#eab308' },
+      { key: 'hardening',    label: 'Hardening Recommendations',   icon: '◉', color: '#3b82f6' },
+      { key: 'pass',         label: 'Passed',                      icon: '✓', color: '#22c55e' },
+      { key: 'inconclusive', label: 'Inconclusive',                icon: '~', color: '#94a3b8' },
+      { key: 'na',           label: 'Not Checked',                 icon: '○', color: '#64748b' },
     ];
 
     function getGroup(c) {
@@ -481,6 +511,7 @@ const PAID_CHECK_PREVIEWS = [
         case 'security_observation':     return 'observation';
         case 'hardening_recommendation': return 'hardening';
         case 'passed':                   return 'pass';
+        case 'inconclusive':             return 'inconclusive';
         default: return c.status === 'pass' ? 'pass' : 'na';
       }
     }
@@ -525,9 +556,11 @@ const PAID_CHECK_PREVIEWS = [
   }
 
   function buildCard(f, compact) {
-    const showSev  = f.status === 'fail' || f.status === 'warn';
-    const isError  = f.status === 'error';
-    const hasDetail = f.detail || f.remediation || f.business_impact || f.evidence || isError;
+    const showSev        = f.status === 'fail' || f.status === 'warn';
+    const isError        = f.status === 'error';
+    const isInconclusive = f.status === 'inconclusive';
+    const isIncomplete   = isError || isInconclusive;
+    const hasDetail      = f.detail || f.remediation || f.business_impact || f.evidence || isIncomplete;
 
     const inlineRefsHtml = (showSev && f.references?.length) ? `
       <div class="inline-refs">${
@@ -556,18 +589,24 @@ const PAID_CHECK_PREVIEWS = [
         ${f.cwe ? `<span class="mapping-tag cwe-tag">${escHtml(f.cwe)}</span>` : ''}
       </div>` : '';
 
-    const errorBannerHtml = isError ? `
-      <div class="error-banner">
-        <span class="error-banner-icon">?</span>
+    const incompleteBannerHtml = isIncomplete ? `
+      <div class="error-banner ${isInconclusive ? 'inconclusive-banner' : ''}">
+        <span class="error-banner-icon">${isInconclusive ? '~' : '?'}</span>
         <div>
-          <div class="error-banner-title">Could not complete this check</div>
-          <div class="error-banner-body">${escHtml(f.errorReason ?? 'The domain may be unreachable, the request timed out, or the endpoint does not exist. This is not a security finding.')}</div>
+          <div class="error-banner-title">${isInconclusive ? 'Result is inconclusive' : 'Could not complete this check'}</div>
+          <div class="error-banner-body">${escHtml(
+            isInconclusive
+              ? (f.errorReason ?? 'The check ran but could not determine a result. This may be due to a timeout, blocked request, or insufficient external signals. It is not the same as passing.')
+              : (f.errorReason ?? 'The domain may be unreachable, the request timed out, or the endpoint does not exist. This is not a security finding.')
+          )}</div>
+          ${f.reasonCode ? `<div class="error-reason-code">Reason: ${escHtml(f.reasonCode)}</div>` : ''}
         </div>
       </div>` : '';
 
     const detailHtml = hasDetail ? `
       <div class="result-detail" hidden>
-        ${isError ? errorBannerHtml : ''}
+        ${isIncomplete ? incompleteBannerHtml : ''}
+        ${f.evidence ? `<div class="evidence-block"><span class="evidence-label">Evidence</span><pre class="evidence-pre">${escHtml(f.evidence)}</pre></div>` : ''}
         ${f.detail ? `<p class="detail-text">${escHtml(f.detail)}</p>` : ''}
         ${f.business_impact ? `<div class="impact-block"><span class="impact-label">Business impact</span>${escHtml(f.business_impact)}</div>` : ''}
         ${f.remediation ? `<div class="remediation"><span class="remed-label">How to fix</span>${escHtml(f.remediation)}</div>` : ''}
@@ -584,9 +623,9 @@ const PAID_CHECK_PREVIEWS = [
           <div class="result-header-row">
             <span class="check-name">${escHtml(f.name)}</span>
             ${showSev ? `<span class="sev-badge sev-${f.severity}"><span class="sev-icon">${SEV_ICON[f.severity] ?? ''}</span>${SEV_LABEL[f.severity] ?? f.severity}</span>` : ''}
-            ${isError ? '<span class="sev-badge sev-na">N/A</span>' : ''}
+            ${isInconclusive ? '<span class="sev-badge sev-inconclusive">Inconclusive</span>' : isError ? '<span class="sev-badge sev-na">N/A</span>' : ''}
             ${confBadgeHtml}
-            ${f.classification && f.classification !== 'passed' && f.classification !== 'not_checked' ? `<span class="class-badge class-${f.classification.split('_')[0]}">${
+            ${f.classification && !['passed', 'not_checked', 'inconclusive'].includes(f.classification) ? `<span class="class-badge class-${f.classification.split('_')[0]}">${
               { confirmed_vulnerability: 'Confirmed', potential_vulnerability: 'Potential', security_observation: 'Observation', hardening_recommendation: 'Recommendation' }[f.classification] ?? ''
             }</span>` : ''}
           </div>
@@ -659,6 +698,7 @@ const PAID_CHECK_PREVIEWS = [
       completePhaseAnimation();
       buildResults(data);
       setState('results');
+      document.getElementById('limitations-section').hidden = false;
       document.getElementById('results-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (e) {
       stopPhaseAnimation();
@@ -1048,10 +1088,11 @@ const PAID_CHECK_PREVIEWS = [
 <style is:global>
   /* ─── Chips ─────────────────────────────────────────────────────── */
   .chip { font-size: 0.73rem; font-weight: 700; padding: 0.3em 0.85em; border-radius: 9999px; letter-spacing: 0.03em; }
-  .chip-pass { background: rgba(52,211,153,0.15);   border: 1px solid rgba(52,211,153,0.35);   color: #6ee7b7; }
-  .chip-warn { background: rgba(251,191,36,0.15);   border: 1px solid rgba(251,191,36,0.35);   color: #fcd34d; }
-  .chip-fail { background: rgba(248,113,113,0.15);  border: 1px solid rgba(248,113,113,0.35);  color: #fca5a5; }
-  .chip-err  { background: rgba(100,116,139,0.15);  border: 1px solid rgba(100,116,139,0.35);  color: #94a3b8; }
+  .chip-pass         { background: rgba(52,211,153,0.15);   border: 1px solid rgba(52,211,153,0.35);   color: #6ee7b7; }
+  .chip-warn         { background: rgba(251,191,36,0.15);   border: 1px solid rgba(251,191,36,0.35);   color: #fcd34d; }
+  .chip-fail         { background: rgba(248,113,113,0.15);  border: 1px solid rgba(248,113,113,0.35);  color: #fca5a5; }
+  .chip-err          { background: rgba(100,116,139,0.15);  border: 1px solid rgba(100,116,139,0.35);  color: #94a3b8; }
+  .chip-inconclusive { background: rgba(148,163,184,0.12);  border: 1px solid rgba(148,163,184,0.30);  color: #94a3b8; }
   .chip-free { background: rgba(56,189,248,0.15);   border: 1px solid rgba(56,189,248,0.30);   color: #7dd3fc; }
   .chip-paid { background: rgba(129,140,248,0.15);  border: 1px solid rgba(129,140,248,0.30);  color: #a5b4fc; }
   .summary-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
@@ -1061,12 +1102,13 @@ const PAID_CHECK_PREVIEWS = [
 
   /* ─── Risk sections ─────────────────────────────────────────────── */
   .risk-section { border-radius: 12px; overflow: hidden; border: 2px solid; }
-  .risk-section-confirmed   { border-color: rgba(239,68,68,0.80); }
-  .risk-section-potential   { border-color: rgba(249,115,22,0.75); }
-  .risk-section-observation { border-color: rgba(234,179,8,0.70);  }
-  .risk-section-hardening   { border-color: rgba(59,130,246,0.65); }
-  .risk-section-pass        { border-color: rgba(34,197,94,0.60);  }
-  .risk-section-na          { border-color: rgba(100,116,139,0.45); }
+  .risk-section-confirmed    { border-color: rgba(239,68,68,0.80); }
+  .risk-section-potential    { border-color: rgba(249,115,22,0.75); }
+  .risk-section-observation  { border-color: rgba(234,179,8,0.70);  }
+  .risk-section-hardening    { border-color: rgba(59,130,246,0.65); }
+  .risk-section-pass         { border-color: rgba(34,197,94,0.60);  }
+  .risk-section-inconclusive { border-color: rgba(148,163,184,0.40); }
+  .risk-section-na           { border-color: rgba(100,116,139,0.45); }
 
   .score-indicator {
     font-size: 0.78rem;
@@ -1158,7 +1200,9 @@ const PAID_CHECK_PREVIEWS = [
   .status-dot.status-fail  { background: rgba(248,113,113,0.18); color: #f87171; border: 1.5px solid rgba(248,113,113,0.40); }
   .status-dot.status-warn  { background: rgba(251,191,36,0.18);  color: #fbbf24; border: 1.5px solid rgba(251,191,36,0.40); }
   .status-dot.status-info  { background: rgba(56,189,248,0.18);  color: #38bdf8; border: 1.5px solid rgba(56,189,248,0.40); }
-  .status-dot.status-error { background: rgba(71,85,105,0.25);   color: #64748b; border: 1.5px solid rgba(71,85,105,0.40); }
+  .status-dot.status-error        { background: rgba(71,85,105,0.25);   color: #64748b; border: 1.5px solid rgba(71,85,105,0.40); }
+  .status-dot.status-inconclusive { background: rgba(148,163,184,0.18); color: #94a3b8; border: 1.5px solid rgba(148,163,184,0.35); }
+  .status-dot.status-not_run      { background: rgba(71,85,105,0.15);   color: #475569; border: 1.5px solid rgba(71,85,105,0.30); }
 
   .result-body { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; min-width: 0; }
   .result-header-row { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
@@ -1176,7 +1220,8 @@ const PAID_CHECK_PREVIEWS = [
   .sev-medium   { background: rgba(234,179,8,0.18);   border: 1px solid rgba(234,179,8,0.50);   color: #fde68a; }
   .sev-low      { background: rgba(59,130,246,0.18);  border: 1px solid rgba(59,130,246,0.50);  color: #93c5fd; }
   .sev-informational { background: rgba(100,116,139,0.15); border: 1px solid rgba(100,116,139,0.35); color: #94a3b8; }
-  .sev-na       { background: rgba(100,116,139,0.12); border: 1px solid rgba(100,116,139,0.28); color: #64748b; }
+  .sev-na           { background: rgba(100,116,139,0.12); border: 1px solid rgba(100,116,139,0.28); color: #64748b; }
+  .sev-inconclusive { background: rgba(148,163,184,0.10); border: 1px solid rgba(148,163,184,0.28); color: #94a3b8; }
 
   .conf-badge {
     font-size: 0.60rem; font-weight: 600; color: #64748b;
@@ -1248,8 +1293,30 @@ const PAID_CHECK_PREVIEWS = [
     font-size: 0.72rem; font-weight: 800;
     display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 0.05rem;
   }
-  .error-banner-title { font-size: 0.82rem; font-weight: 700; color: #94a3b8; margin-bottom: 0.2rem; }
-  .error-banner-body  { font-size: 0.79rem; color: #64748b; line-height: 1.6; }
+  .error-banner-title   { font-size: 0.82rem; font-weight: 700; color: #94a3b8; margin-bottom: 0.2rem; }
+  .error-banner-body    { font-size: 0.79rem; color: #64748b; line-height: 1.6; }
+  .error-reason-code    { font-size: 0.72rem; font-family: monospace; color: #475569; margin-top: 0.25rem; }
+  .inconclusive-banner  { border-color: rgba(148,163,184,0.30); background: rgba(148,163,184,0.06); }
+  .inconclusive-banner .error-banner-icon { color: #94a3b8; }
+  .inconclusive-banner .error-banner-title { color: #94a3b8; }
+
+  .evidence-block  { margin: 0.6rem 0 0.4rem; }
+  .evidence-label  { display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.3rem; }
+  .evidence-pre    { background: rgba(15,23,42,0.60); border: 1px solid rgba(148,163,184,0.12); border-radius: 6px; padding: 0.5rem 0.7rem; font-size: 0.78rem; line-height: 1.6; color: #94a3b8; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+
+  .coverage-metrics { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; font-size: 0.82rem; color: var(--text-muted); padding: 0.5rem 0 0.2rem; }
+  .cov-item    { display: inline-flex; align-items: center; gap: 0.25rem; }
+  .cov-val     { font-weight: 700; color: var(--text-base); font-size: 0.9rem; }
+  .cov-sep     { color: var(--text-muted); opacity: 0.5; }
+  .cov-inconclusive .cov-val { color: #94a3b8; }
+  .cov-na .cov-val            { color: #64748b; }
+
+  .limitations-section { margin: 1rem 0; border: 1px solid rgba(148,163,184,0.18); border-radius: 10px; background: rgba(15,23,42,0.35); overflow: hidden; }
+  .limitations-title   { padding: 0.65rem 1rem; font-size: 0.82rem; font-weight: 600; color: var(--text-muted); cursor: pointer; list-style: none; }
+  .limitations-title::before { content: '▶ '; font-size: 0.6em; opacity: 0.6; }
+  details[open] .limitations-title::before { content: '▼ '; }
+  .limitations-body    { padding: 0 1rem 0.5rem; font-size: 0.79rem; color: var(--text-muted); line-height: 1.65; }
+  .limitations-list    { padding: 0 1rem 0.8rem 1.8rem; font-size: 0.79rem; color: #64748b; line-height: 1.8; margin: 0; }
 
   .ref-row { margin-top: 0.75rem; padding-top: 0.85rem; border-top: 1px solid rgba(255,255,255,0.06); }
   .ref-label { display: block; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.10em; text-transform: uppercase; color: #475569; margin-bottom: 0.5rem; }

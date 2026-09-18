@@ -69,11 +69,11 @@ const spfStrength: SecurityTest = {
       if (!spf) return { ...base, status: 'fail', finding: 'No SPF record found' };
       const text = spf.data.replace(/"/g, '');
       if (text.includes('-all')) return { ...base, status: 'pass', finding: 'SPF ends with -all (hard fail) — strongest enforcement' };
-      if (text.includes('~all')) return { ...base, status: 'warn', finding: 'SPF ends with ~all (soft fail) — consider upgrading to -all', confidence: 'high' };
+      if (text.includes('~all')) return { ...base, status: 'warn', severity: 'low', confidence: 'medium', finding: 'SPF uses a soft-fail (~all) policy. This is weaker than -all, which explicitly identifies mail from non-authorized sources as failing SPF. Consider moving to -all once all legitimate sending services are confirmed.', reasonCode: 'SPF_SOFT_FAIL' };
       if (text.includes('+all')) return { ...base, status: 'fail', finding: 'SPF ends with +all — any server is permitted to send on behalf of this domain' };
-      return { ...base, status: 'warn', finding: 'SPF record has no explicit all qualifier', confidence: 'medium' };
+      return { ...base, status: 'warn', severity: 'low', finding: 'SPF record has no explicit all qualifier', confidence: 'low' };
     } catch {
-      return { ...base, status: 'error', finding: 'Could not evaluate SPF strength', errorReason: 'DNS-over-HTTPS query timed out or returned an error.' };
+      return { ...base, status: 'inconclusive', finding: 'Could not evaluate SPF strength', errorReason: 'DNS-over-HTTPS query timed out or returned an error.', reasonCode: 'DNS_TIMEOUT' };
     }
   },
 };
@@ -140,10 +140,10 @@ const dmarcPolicy: SecurityTest = {
       const pMatch = text.match(/\bp=([a-z]+)/i);
       const policy = pMatch?.[1]?.toLowerCase() ?? 'none';
       if (policy === 'reject') return { ...base, status: 'pass', finding: 'DMARC policy is p=reject — maximum enforcement' };
-      if (policy === 'quarantine') return { ...base, status: 'warn', finding: 'DMARC policy is p=quarantine — consider upgrading to p=reject', confidence: 'high' };
+      if (policy === 'quarantine') return { ...base, status: 'warn', severity: 'low', confidence: 'low', finding: 'DMARC is configured with p=quarantine. This instructs receiving systems to treat DMARC-failing messages as suspicious. A p=reject policy provides stronger enforcement once legitimate sending sources have been validated.', reasonCode: 'DMARC_QUARANTINE' };
       return { ...base, status: 'fail', finding: 'DMARC policy is p=none — monitoring only, spoofed emails are not blocked' };
     } catch {
-      return { ...base, status: 'error', finding: 'Could not evaluate DMARC policy', errorReason: 'DNS-over-HTTPS query timed out or returned an error.' };
+      return { ...base, status: 'inconclusive', finding: 'Could not evaluate DMARC policy', errorReason: 'DNS-over-HTTPS query timed out or returned an error.', reasonCode: 'DNS_TIMEOUT' };
     }
   },
 };

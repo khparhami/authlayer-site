@@ -109,14 +109,14 @@ const authEndpointProtection: SecurityTest = {
         .filter((r): r is PromiseFulfilledResult<{ path: string; status: number; rateLimitHeaders: (string | null)[] }> =>
           r.status === 'fulfilled' && [200, 301, 302].includes(r.value.status))
         .map(r => r.value);
-      if (live.length === 0) return { ...base, status: 'info', finding: 'No accessible auth endpoints found at common paths', confidence: 'low' };
+      if (live.length === 0) return { ...base, status: 'inconclusive', finding: 'No authentication endpoint was identified at the tested common paths. The application may use custom routing, a different path structure, or client-side navigation not detectable from the outside.', confidence: 'low', reasonCode: 'NO_COMMON_ENDPOINTS_FOUND' };
       const protected_ = live.filter(r => r.rateLimitHeaders.length > 0);
       if (protected_.length > 0) {
         return { ...base, status: 'pass', finding: `Rate limiting headers detected on auth endpoint(s): ${protected_.map(r => r.path).join(', ')}` };
       }
       return { ...base, status: 'warn', finding: `Auth endpoint(s) accessible at ${live.map(r => r.path).join(', ')} but no rate limiting headers detected` };
     } catch {
-      return { ...base, status: 'error', finding: 'Could not evaluate auth endpoint protection', errorReason: 'Request failed or timed out.' };
+      return { ...base, status: 'inconclusive', finding: 'Could not evaluate auth endpoint protection', errorReason: 'Request failed or timed out.', reasonCode: 'REQUEST_TIMEOUT' };
     }
   },
 };
@@ -147,7 +147,7 @@ const subdomainSurface: SecurityTest = {
         const r = queries[i];
         return r.status === 'fulfilled' && (r.value.Answer?.length ?? 0) > 0;
       });
-      if (live.length === 0) return { ...base, status: 'info', finding: 'No auth-related subdomains found in DNS' };
+      if (live.length === 0) return { ...base, status: 'info', finding: 'No auth-related subdomains were identified in the DNS records examined.' };
       return { ...base, status: 'info', finding: `Auth subdomains found in DNS: ${live.map(s => s + '.' + domain).join(', ')}` };
     } catch {
       return { ...base, status: 'error', finding: 'Could not query subdomain DNS records', errorReason: 'DNS-over-HTTPS query timed out or returned an error.' };
@@ -180,9 +180,12 @@ const securityTxt: SecurityTest = {
     try {
       const res = await fetchWithTimeout(`https://${domain}/.well-known/security.txt`, {}, 5000);
       if (res.ok) return { ...base, status: 'pass', finding: 'security.txt is present at /.well-known/security.txt' };
-      return { ...base, status: 'info', finding: 'No security.txt found — consider adding one for responsible disclosure' };
+      if (res.status === 404) {
+        return { ...base, status: 'warn', severity: 'low', finding: 'No security.txt was found at /.well-known/security.txt. Adding one makes it easier for security researchers to report issues responsibly.', reasonCode: 'SECURITY_TXT_NOT_FOUND' };
+      }
+      return { ...base, status: 'inconclusive', finding: 'Could not determine security.txt availability — the server returned an unexpected response.', reasonCode: 'UNEXPECTED_RESPONSE' };
     } catch {
-      return { ...base, status: 'info', finding: 'Could not check for security.txt' };
+      return { ...base, status: 'inconclusive', finding: 'Could not check for security.txt — request timed out or was blocked.', reasonCode: 'REQUEST_TIMEOUT' };
     }
   },
 };
@@ -305,11 +308,11 @@ const sourceMaps: SecurityTest = {
         };
       }
       if (jsFiles.length === 0) {
-        return { ...base, status: 'info', finding: 'No public JS bundle files found at common paths — source map check inconclusive', confidence: 'low' };
+        return { ...base, status: 'inconclusive', finding: 'No public JS bundle files found at common paths — source map check inconclusive', confidence: 'low', reasonCode: 'NO_JS_BUNDLES_FOUND' };
       }
       return { ...base, status: 'pass', finding: 'No SourceMap headers detected on public JS files', confidence: 'medium' };
     } catch {
-      return { ...base, status: 'error', finding: 'Could not probe for source map exposure', errorReason: 'Request failed or timed out.' };
+      return { ...base, status: 'inconclusive', finding: 'Could not probe for source map exposure', errorReason: 'Request failed or timed out.', reasonCode: 'REQUEST_TIMEOUT' };
     }
   },
 };

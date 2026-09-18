@@ -85,10 +85,11 @@ const dnsConfiguration: SecurityTest = {
       if (caaRecs.length === 0) {
         return {
           ...base,
-          status: 'info',
+          status: 'warn',
           severity: 'low',
-          finding: `DNS surface mapped — ${surface.join(', ')} records found. No CAA records: any CA may issue certificates for this domain`,
+          finding: `DNS surface mapped — ${surface.join(', ')} records found. No restrictive CAA policy was detected for this domain. CAA records can be used to specify which certificate authorities are authorised to issue certificates for the domain.`,
           evidence,
+          reasonCode: 'NO_CAA_RECORDS',
         };
       }
 
@@ -101,9 +102,10 @@ const dnsConfiguration: SecurityTest = {
       };
     } catch {
       return {
-        ...base, status: 'error',
+        ...base, status: 'inconclusive',
         finding: 'Could not query DNS records',
         errorReason: 'DNS-over-HTTPS query failed or timed out.',
+        reasonCode: 'DNS_TIMEOUT',
       };
     }
   },
