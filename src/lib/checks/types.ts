@@ -73,6 +73,8 @@ export interface ScanResult {
   topFindings: Finding[];
   attackSurface?: import('../assessment/types.js').AttackSurface;
   auditLog?: import('../assessment/types.js').AuditEntry[];
+  authenticated?: boolean;
+  authConnection?: import('../auth/types.js').AuthConnectionInfo;
 }
 
 export interface SecurityTest {

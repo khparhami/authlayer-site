@@ -150,6 +150,76 @@ const PAID_CHECK_PREVIEWS = [
           </div>
         </div>
 
+        <!-- Section 3: Authentication (optional) -->
+        <div class="form-section" id="auth-connection-section">
+          <div class="section-label">Authentication <span class="optional">optional — adds authenticated security tests</span></div>
+
+          <p class="auth-section-desc">Connect an OAuth 2.0 / OIDC provider to run authenticated tests against your API and application. Tokens are used in-memory only and revoked immediately after the assessment.</p>
+
+          <label class="auth-toggle-label" for="enable-auth-checkbox">
+            <div class="checkbox-wrapper">
+              <input type="checkbox" id="enable-auth-checkbox" />
+              <span class="custom-checkbox"></span>
+            </div>
+            Enable authenticated assessment
+          </label>
+
+          <div id="auth-connect-panel" hidden>
+            <div class="field-row field-row--two">
+              <div class="field">
+                <label for="oauth-issuer-input">OAuth 2.0 / OIDC Issuer URL <span class="required-mark">*</span></label>
+                <input
+                  id="oauth-issuer-input"
+                  type="text"
+                  placeholder="https://auth.example.com"
+                  autocomplete="off"
+                  spellcheck="false"
+                  autocorrect="off"
+                  autocapitalize="off"
+                />
+                <span class="field-hint">Must support OIDC discovery (/.well-known/openid-configuration)</span>
+              </div>
+              <div class="field">
+                <label for="oauth-client-id-input">Client ID <span class="required-mark">*</span></label>
+                <input
+                  id="oauth-client-id-input"
+                  type="text"
+                  placeholder="your-client-id"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <span class="field-hint" id="redirect-uri-hint">Configure the redirect URI in your IdP</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="oauth-scopes-input">Requested scopes <span class="optional">optional</span></label>
+              <input
+                id="oauth-scopes-input"
+                type="text"
+                placeholder="openid profile email"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+
+            <div class="auth-info-box">
+              <span class="auth-info-icon">🔒</span>
+              <div class="auth-info-text">
+                Tokens exist only in Cloudflare Worker memory during the assessment and are never written to storage, logs, or responses. They are revoked via the IdP immediately after all tests complete.
+              </div>
+            </div>
+
+            <p id="auth-connect-error" class="field-error" hidden></p>
+
+            <div class="btn-row">
+              <button id="btn-connect-auth" class="btn btn-secondary" type="button">
+                Connect via OAuth
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- ── Results area ────────────────────────────────────── -->
@@ -316,6 +386,16 @@ const PAID_CHECK_PREVIEWS = [
   const teaserList       = document.getElementById('teaser-list');
   const errorText        = document.getElementById('error-text');
 
+  // Auth section
+  const enableAuthCheckbox = document.getElementById('enable-auth-checkbox');
+  const authConnectPanel   = document.getElementById('auth-connect-panel');
+  const oauthIssuerInput   = document.getElementById('oauth-issuer-input');
+  const oauthClientIdInput = document.getElementById('oauth-client-id-input');
+  const oauthScopesInput   = document.getElementById('oauth-scopes-input');
+  const btnConnectAuth     = document.getElementById('btn-connect-auth');
+  const authConnectError   = document.getElementById('auth-connect-error');
+  const redirectUriHint    = document.getElementById('redirect-uri-hint');
+
   // ─── Constants ──────────────────────────────────────────────────────────────
   const CATEGORY_LABELS = {
     dns:            'DNS Configuration',
@@ -438,10 +518,71 @@ const PAID_CHECK_PREVIEWS = [
     authError.hidden = true;
   });
 
+  // ─── Authenticated assessment section ───────────────────────────────────────
+
+  enableAuthCheckbox.addEventListener('change', () => {
+    authConnectPanel.hidden = !enableAuthCheckbox.checked;
+    if (enableAuthCheckbox.checked) setRedirectUriHint();
+  });
+
+  function setRedirectUriHint() {
+    const uri = `${window.location.origin}/api/oauth/callback`;
+    redirectUriHint.innerHTML = `Redirect URI: <code>${escHtml(uri)}</code>`;
+  }
+
+  async function connectAuth() {
+    authConnectError.hidden = true;
+    const issuer   = oauthIssuerInput.value.trim();
+    const clientId = oauthClientIdInput.value.trim();
+    const scopes   = oauthScopesInput.value.trim();
+    const parsed   = parseInput(domainInput.value);
+    const domain   = parsed.domain;
+    const apiUrlEl   = document.getElementById('api-url-input');
+    const authUrlEl  = document.getElementById('auth-url-input');
+    const apiUrlVal  = apiUrlEl?.value?.trim()  ?? '';
+    const authUrlVal = authUrlEl?.value?.trim() ?? '';
+
+    if (!issuer)    { showConnectError('Enter an OIDC issuer URL.');          return; }
+    if (!clientId)  { showConnectError('Enter a client ID.');                 return; }
+    if (!domain)    { showConnectError('Enter a target domain first.');       return; }
+    if (!authCheckbox.checked) { showConnectError('Check the authorization confirmation before connecting.'); return; }
+
+    btnConnectAuth.disabled = true;
+    btnConnectAuth.textContent = 'Redirecting…';
+
+    try {
+      const body = { issuer, clientId, domain };
+      if (scopes)    body.scopes  = scopes;
+      if (apiUrlVal) body.apiUrl  = apiUrlVal;
+      if (authUrlVal) body.authUrl = authUrlVal;
+
+      const res  = await fetch('/api/oauth/authorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Authorization request failed');
+      window.location.href = json.authorizationUrl;
+    } catch (e) {
+      showConnectError(e.message ?? 'Connection failed');
+      btnConnectAuth.disabled = false;
+      btnConnectAuth.textContent = 'Connect via OAuth';
+    }
+  }
+
+  function showConnectError(msg) {
+    authConnectError.textContent = msg;
+    authConnectError.hidden = false;
+  }
+
+  btnConnectAuth.addEventListener('click', connectAuth);
+
   // ─── Build results ──────────────────────────────────────────────────────────
   function buildResults(data) {
     const { domain, report, findings, topFindings, assetsDiscovered, assetsProvided, assetsTested,
-            endpointsTested, testsRun, httpRequestCount, durationMs, score, grade, attackSurface } = data;
+            endpointsTested, testsRun, httpRequestCount, durationMs, score, grade, attackSurface,
+            authenticated, authConnection } = data;
     const company = document.getElementById('company-input').value.trim();
 
     // Summary bar
@@ -496,6 +637,9 @@ const PAID_CHECK_PREVIEWS = [
       inconclusiveCount ? `<span class="chip chip-inconclusive">${inconclusiveCount} inconclusive</span>` : '',
       notChecked        ? `<span class="chip chip-err">${notChecked} not checked</span>` : '',
       `<span class="chip ${report === 'paid' ? 'chip-paid' : 'chip-free'}">${report === 'paid' ? 'Deeper Assessment' : 'Surface Assessment'}</span>`,
+      authenticated && authConnection
+        ? `<span class="chip chip-auth">Authenticated · ${escHtml(authConnection.scopes?.join(' ') || 'OAuth')}</span>`
+        : '',
     ].filter(Boolean).join('');
 
     // Coverage metrics (primary display)
@@ -762,6 +906,38 @@ const PAID_CHECK_PREVIEWS = [
   domainInput.addEventListener('keydown', e => {
     if (e.key === 'Enter' && authCheckbox.checked) runReport('free');
   });
+
+  // ─── Auto-load authenticated result from OAuth callback redirect ─────────────
+
+  (async () => {
+    const params       = new URLSearchParams(window.location.search);
+    const authResultId = params.get('auth_result');
+    if (!authResultId) return;
+
+    // Remove param from URL without page reload
+    history.replaceState({}, '', window.location.pathname);
+
+    setState('loading');
+    loadingDomain.textContent = 'Authenticated Assessment';
+    startPhaseAnimation();
+
+    try {
+      const res  = await fetch(`/api/auth-result?id=${encodeURIComponent(authResultId)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Could not retrieve assessment result');
+
+      completePhaseAnimation();
+      buildResults(data);
+      setState('results');
+      document.getElementById('limitations-section').hidden  = false;
+      document.getElementById('methodology-section').hidden  = false;
+      document.getElementById('results-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      stopPhaseAnimation();
+      errorText.textContent = e.message ?? 'Could not retrieve assessment result';
+      setState('error');
+    }
+  })();
 </script>
 
 <style>
@@ -1140,7 +1316,27 @@ const PAID_CHECK_PREVIEWS = [
   .chip-inconclusive { background: rgba(148,163,184,0.12);  border: 1px solid rgba(148,163,184,0.30);  color: #94a3b8; }
   .chip-free { background: rgba(56,189,248,0.15);   border: 1px solid rgba(56,189,248,0.30);   color: #7dd3fc; }
   .chip-paid { background: rgba(129,140,248,0.15);  border: 1px solid rgba(129,140,248,0.30);  color: #a5b4fc; }
+  .chip-auth { background: rgba(52,211,153,0.15);   border: 1px solid rgba(52,211,153,0.30);   color: #6ee7b7; }
   .summary-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+  /* ─── Auth connection section ────────────────────────────────── */
+  .auth-section-desc { font-size: 0.825rem; color: var(--text-dim); line-height: 1.55; margin: 0 0 1rem; }
+  .auth-toggle-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; font-size: 0.875rem; font-weight: 600; color: var(--text-main); user-select: none; }
+  .auth-toggle-label .checkbox-wrapper { display: flex; align-items: center; }
+  .auth-toggle-label input[type="checkbox"] { display: none; }
+  .auth-toggle-label .custom-checkbox { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid rgba(148,163,184,0.45); background: rgba(15,23,42,0.6); display: flex; align-items: center; justify-content: center; transition: border-color 0.18s, background 0.18s; flex-shrink: 0; }
+  .auth-toggle-label input[type="checkbox"]:checked + .custom-checkbox { background: rgba(52,211,153,0.20); border-color: rgba(52,211,153,0.65); }
+  .auth-toggle-label input[type="checkbox"]:checked + .custom-checkbox::after { content: ''; display: block; width: 5px; height: 9px; border: 2px solid #34d399; border-top: none; border-left: none; transform: rotate(45deg) translate(-1px,-1px); }
+  #auth-connect-panel { display: flex; flex-direction: column; gap: 1rem; padding-top: 0.75rem; }
+  .field-hint { font-size: 0.73rem; color: var(--text-muted); margin-top: 0.2rem; display: block; }
+  .field-hint code { font-family: ui-monospace, monospace; font-size: 0.72rem; }
+  .required-mark { color: #f87171; font-weight: 400; }
+  .auth-info-box { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.9rem 1rem; background: rgba(52,211,153,0.05); border: 1px solid rgba(52,211,153,0.15); border-radius: 10px; }
+  .auth-info-icon { font-size: 0.875rem; flex-shrink: 0; line-height: 1.6; }
+  .auth-info-text { font-size: 0.79rem; color: var(--text-muted); line-height: 1.6; }
+  .btn-secondary { background: transparent; border: 1.5px solid rgba(52,211,153,0.40); color: #34d399; font-size: 0.875rem; font-weight: 600; padding: 0.65rem 1.5rem; border-radius: 8px; cursor: pointer; transition: border-color 0.18s, background 0.18s; letter-spacing: 0.01em; }
+  .btn-secondary:hover { border-color: rgba(52,211,153,0.65); background: rgba(52,211,153,0.08); }
+  .btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
 
   /* ─── Results list ──────────────────────────────────────────────── */
   .results-list { display: flex; flex-direction: column; gap: 2rem; }
