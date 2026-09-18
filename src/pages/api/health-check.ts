@@ -48,6 +48,7 @@ export const GET: APIRoute = async ({ url, request, locals }) => {
   const domainParam     = url.searchParams.get('domain') ?? '';
   const reportParam     = url.searchParams.get('report') === 'paid' ? 'paid' : 'free';
   const authUrlParam    = url.searchParams.get('authUrl');
+  const apiUrlParam     = url.searchParams.get('apiUrl');
   const additionalParam = url.searchParams.get('additionalAssets') ?? '';
   const scopeParam      = url.searchParams.get('scope') ?? '';
 
@@ -69,6 +70,7 @@ export const GET: APIRoute = async ({ url, request, locals }) => {
   }
 
   const authUrl = parseAuthUrl(authUrlParam);
+  const apiUrl  = parseAuthUrl(apiUrlParam);
   const additionalAssets = additionalParam
     .split('\n')
     .map(s => s.trim())
@@ -81,7 +83,7 @@ export const GET: APIRoute = async ({ url, request, locals }) => {
     .map(s => s.trim())
     .filter(Boolean);
 
-  const ctx = { domain, authUrl, additionalAssets, scope };
+  const ctx = { domain, authUrl, apiUrl, additionalAssets, scope };
   const tests = reportParam === 'paid' ? PAID_TESTS : FREE_TESTS;
   const result = await runScan(ctx, tests);
 

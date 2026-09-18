@@ -187,6 +187,134 @@ const securityTxt: SecurityTest = {
   },
 };
 
+const sensitiveFiles: SecurityTest = {
+  test_id: 'INFO-001b',
+  name: 'Sensitive File Exposure',
+  version: '1.0.0',
+  category: 'exposure',
+  severity: 'high',
+  confidence: 'confirmed',
+  owasp_mapping: 'A05:2021',
+  cwe: 'CWE-538',
+  safe_for_production: true,
+  requires_active_testing: false,
+  async run({ domain }: ScanContext): Promise<Finding> {
+    const base = {
+      test_id: this.test_id, name: this.name, category: this.category,
+      severity: this.severity, confidence: this.confidence,
+      owasp_mapping: this.owasp_mapping, cwe: this.cwe,
+      detail: 'Publicly accessible environment files, git repositories, backup archives, and debug endpoints can expose credentials, source code, internal paths, and configuration secrets to any attacker.',
+      remediation: 'Block access to sensitive paths at the CDN/web server layer. Verify no environment files, .git directories, or backup files are in your web root. Use deny rules in wrangler.toml, nginx, or Cloudflare WAF rules.',
+      references: [
+        { label: 'OWASP — Sensitive Data Exposure', url: 'https://owasp.org/Top10/A02_2021-Cryptographic_Failures/' },
+        { label: 'CWE-538 — File and Directory Information Exposure', url: 'https://cwe.mitre.org/data/definitions/538.html' },
+      ],
+    };
+    const sensitivePaths = [
+      '/.env', '/.env.local', '/.env.production', '/.env.backup',
+      '/.git/config', '/.git/HEAD',
+      '/backup.sql', '/dump.sql', '/database.sql', '/db.sql',
+      '/backup.zip', '/backup.tar.gz', '/www.zip',
+      '/config.json', '/config.php', '/wp-config.php',
+      '/phpinfo.php', '/.DS_Store',
+      '/debug', '/_debug_toolbar', '/telescope',
+    ];
+    try {
+      const results = await Promise.allSettled(
+        sensitivePaths.map(p =>
+          fetchWithTimeout(`https://${domain}${p}`, { redirect: 'manual' }, 4000)
+            .then(r => ({ path: p, status: r.status, ct: r.headers.get('content-type') ?? '' }))
+        )
+      );
+      const exposed: string[] = [];
+      for (const r of results) {
+        if (r.status !== 'fulfilled') continue;
+        const { path, status, ct } = r.value;
+        // 200 with non-HTML content, or a .env/.git/.sql path returning 200 with any content
+        const isSensitiveExt = /\.(env|git|sql|zip|tar|json|php|bak)/.test(path) || path === '/debug' || path === '/_debug_toolbar' || path === '/telescope';
+        if (status === 200 && (isSensitiveExt || !ct.includes('text/html'))) {
+          exposed.push(path);
+        }
+      }
+      if (exposed.length > 0) {
+        return {
+          ...base, status: 'fail',
+          severity: 'critical',
+          finding: `Sensitive file(s) publicly accessible: ${exposed.join(', ')}`,
+          evidence: `HTTP 200 responses from: ${exposed.join(', ')}`,
+        };
+      }
+      return { ...base, status: 'pass', finding: 'No sensitive files (.env, .git, backups, debug endpoints) found publicly accessible', confidence: 'medium' };
+    } catch {
+      return { ...base, status: 'error', finding: 'Could not check for sensitive file exposure', errorReason: 'Request failed or timed out.' };
+    }
+  },
+};
+
+const sourceMaps: SecurityTest = {
+  test_id: 'INFO-002',
+  name: 'Source Map Exposure',
+  version: '1.0.0',
+  category: 'exposure',
+  severity: 'medium',
+  confidence: 'medium',
+  owasp_mapping: 'A05:2021',
+  cwe: 'CWE-540',
+  safe_for_production: true,
+  requires_active_testing: false,
+  async run({ domain }: ScanContext): Promise<Finding> {
+    const base = {
+      test_id: this.test_id, name: this.name, category: this.category,
+      severity: this.severity, confidence: this.confidence,
+      owasp_mapping: this.owasp_mapping, cwe: this.cwe,
+      detail: 'JavaScript source maps expose original source code, file paths, variable names, and application structure to anyone who can access them. This significantly aids attackers in understanding and exploiting the application.',
+      remediation: 'Do not deploy source maps to production. Configure your bundler (webpack, Vite, esbuild) to generate source maps only for internal error tracking tools, not publicly served files. Serve maps only from authenticated error-tracking endpoints.',
+      references: [
+        { label: 'CWE-540 — Source Code on Web Server', url: 'https://cwe.mitre.org/data/definitions/540.html' },
+        { label: 'OWASP — Information Leakage', url: 'https://owasp.org/www-community/vulnerabilities/Information_exposure_through_query_strings_in_url' },
+      ],
+    };
+    // Probe common JS bundle paths for sourcemap headers or .map files
+    const probePaths = [
+      '/app.js', '/main.js', '/bundle.js', '/index.js',
+      '/_astro/client.js', '/assets/index.js',
+    ];
+    try {
+      const results = await Promise.allSettled(
+        probePaths.map(p =>
+          fetchWithTimeout(`https://${domain}${p}`, { redirect: 'follow' }, 4000)
+            .then(r => ({
+              path: p,
+              ok: r.status === 200,
+              sourceMapHeader: r.headers.get('SourceMap') ?? r.headers.get('X-SourceMap'),
+            }))
+        )
+      );
+      const mapHeaders: string[] = [];
+      const jsFiles: string[] = [];
+      for (const r of results) {
+        if (r.status !== 'fulfilled') continue;
+        if (r.value.ok) jsFiles.push(r.value.path);
+        if (r.value.sourceMapHeader) mapHeaders.push(`${r.value.path} → ${r.value.sourceMapHeader}`);
+      }
+      if (mapHeaders.length > 0) {
+        return {
+          ...base, status: 'fail',
+          finding: `SourceMap headers detected — source maps are publicly accessible: ${mapHeaders[0]}`,
+          evidence: mapHeaders.join('\n'),
+        };
+      }
+      if (jsFiles.length === 0) {
+        return { ...base, status: 'info', finding: 'No public JS bundle files found at common paths — source map check inconclusive', confidence: 'low' };
+      }
+      return { ...base, status: 'pass', finding: 'No SourceMap headers detected on public JS files', confidence: 'medium' };
+    } catch {
+      return { ...base, status: 'error', finding: 'Could not probe for source map exposure', errorReason: 'Request failed or timed out.' };
+    }
+  },
+};
+
 export const EXPOSURE_TESTS: SecurityTest[] = [
   adminExposure, authEndpointProtection, subdomainSurface, securityTxt,
+  sensitiveFiles, sourceMaps,
 ];

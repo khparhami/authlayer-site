@@ -3,13 +3,13 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 
 const PAID_CHECK_PREVIEWS = [
   { name: 'SameSite Cookie Policy',           category: 'cookies' },
-  { name: 'Secure Cookie Prefixes',           category: 'cookies' },
+  { name: 'Secure Cookie Prefixes (__Host-)', category: 'cookies' },
   { name: 'Content-Security-Policy Strength', category: 'headers' },
   { name: 'Referrer-Policy',                  category: 'headers' },
   { name: 'Permissions-Policy',               category: 'headers' },
-  { name: 'Cross-Origin Isolation',           category: 'headers' },
+  { name: 'Cross-Origin Isolation (COOP)',    category: 'headers' },
   { name: 'OIDC Discovery Endpoint',          category: 'oauth'   },
-  { name: 'PKCE Enforcement',                 category: 'oauth'   },
+  { name: 'PKCE S256 Enforcement',            category: 'oauth'   },
   { name: 'Deprecated OAuth Grant Types',     category: 'oauth'   },
   { name: 'Passkey / WebAuthn Support',       category: 'oauth'   },
   { name: 'Phishing-Resistant Authentication',category: 'oauth'   },
@@ -17,7 +17,8 @@ const PAID_CHECK_PREVIEWS = [
   { name: 'DMARC Policy Level',               category: 'email'   },
   { name: 'SPF Enforcement Level',            category: 'email'   },
   { name: 'Auth Subdomain Surface',           category: 'exposure'},
-  { name: 'Security.txt',                     category: 'exposure'},
+  { name: 'Security.txt Disclosure',          category: 'exposure'},
+  { name: 'Source Map Exposure',              category: 'exposure'},
 ];
 ---
 
@@ -69,17 +70,31 @@ const PAID_CHECK_PREVIEWS = [
             </div>
           </div>
 
-          <div class="field">
-            <label for="auth-url-input">Login URL <span class="optional">optional — improves auth checks</span></label>
-            <input
-              id="auth-url-input"
-              type="text"
-              placeholder="https://login.example.com/signin"
-              autocomplete="off"
-              spellcheck="false"
-              autocorrect="off"
-              autocapitalize="off"
-            />
+          <div class="field-row field-row--two">
+            <div class="field">
+              <label for="auth-url-input">Login / Auth URL <span class="optional">optional</span></label>
+              <input
+                id="auth-url-input"
+                type="text"
+                placeholder="https://login.example.com/signin"
+                autocomplete="off"
+                spellcheck="false"
+                autocorrect="off"
+                autocapitalize="off"
+              />
+            </div>
+            <div class="field">
+              <label for="api-url-input">API URL <span class="optional">optional</span></label>
+              <input
+                id="api-url-input"
+                type="text"
+                placeholder="https://api.example.com"
+                autocomplete="off"
+                spellcheck="false"
+                autocorrect="off"
+                autocapitalize="off"
+              />
+            </div>
           </div>
 
           <div class="field">
@@ -130,8 +145,7 @@ const PAID_CHECK_PREVIEWS = [
               Run Free Assessment
             </button>
             <button id="btn-paid" class="btn btn-pro" type="button" disabled>
-              Full Assessment
-              <span class="pro-badge">Pro</span>
+              Deeper Assessment
             </button>
           </div>
         </div>
@@ -186,6 +200,7 @@ const PAID_CHECK_PREVIEWS = [
             <div class="summary-title" id="summary-title">External Security Assessment</div>
             <div class="summary-stats" id="summary-stats"></div>
             <div class="sev-breakdown" id="sev-breakdown"></div>
+            <div class="score-indicator" id="score-indicator"></div>
             <div class="summary-chips" id="summary-chips"></div>
           </div>
 
@@ -206,14 +221,13 @@ const PAID_CHECK_PREVIEWS = [
             <div class="teaser-header">
               <span class="lock-icon">⊘</span>
               <div>
-                <div class="teaser-title">Full Assessment — 16 additional checks</div>
-                <div class="teaser-sub">Cookie policy, CSP strength, OAuth posture, DKIM, DMARC enforcement, subdomain surface, and more</div>
+                <div class="teaser-title">Run a deeper external security assessment</div>
+                <div class="teaser-sub">Cookie policy, CSP strength, OIDC/PKCE, DKIM, DMARC enforcement, source map exposure, subdomain surface, and more — a complete view of your attack surface</div>
               </div>
             </div>
             <ul class="teaser-list" id="teaser-list"></ul>
             <button id="btn-upgrade" class="btn btn-pro teaser-btn" type="button">
-              Run Full Assessment
-              <span class="pro-badge">Pro</span>
+              Run Deeper Assessment
             </button>
           </div>
 
@@ -234,6 +248,7 @@ const PAID_CHECK_PREVIEWS = [
   // ─── DOM refs ───────────────────────────────────────────────────────────────
   const domainInput      = document.getElementById('domain-input');
   const authUrlInput     = document.getElementById('auth-url-input');
+  const apiUrlInput      = document.getElementById('api-url-input');
   const additionalAssets = document.getElementById('additional-assets');
   const scopeInput       = document.getElementById('scope-input');
   const authCheckbox     = document.getElementById('auth-checkbox');
@@ -406,12 +421,7 @@ const PAID_CHECK_PREVIEWS = [
       <span class="stat-sep">·</span>
       <span class="stat"><span class="stat-value">${endpointsTested}</span> endpoints tested</span>
       <span class="stat-sep">·</span>
-      <span class="stat"><span class="stat-value">${testsRun}</span> tests run</span>
-      <span class="stat-sep">·</span>
-      <span class="stat grade-stat" style="--grade-color:${color}">
-        <span class="stat-value grade-val" style="color:${color}">${grade}</span>
-        <span class="stat-sub">${score}/100</span>
-      </span>`;
+      <span class="stat"><span class="stat-value">${testsRun}</span> security tests</span>`;
 
     const sevRows = [
       { key: 'critical',     label: 'Critical', color: '#f87171' },
@@ -420,6 +430,11 @@ const PAID_CHECK_PREVIEWS = [
       { key: 'low',          label: 'Low',       color: '#60a5fa' },
       { key: 'informational',label: 'Info',     color: '#94a3b8' },
     ];
+    const scoreEl = document.getElementById('score-indicator');
+    if (scoreEl) {
+      scoreEl.innerHTML = `Security posture score: <strong style="color:${color}">${grade} (${score}/100)</strong>`;
+    }
+
     sevBreakdown.innerHTML = sevRows.map(r =>
       `<div class="sev-cell">
         <span class="sev-count" style="color:${r.color}">${sevCounts[r.key]}</span>
@@ -427,16 +442,17 @@ const PAID_CHECK_PREVIEWS = [
       </div>`
     ).join('');
 
-    const passed  = findings.filter(f => f.status === 'pass').length;
-    const warned  = findings.filter(f => f.status === 'warn').length;
-    const failed  = findings.filter(f => f.status === 'fail').length;
-    const errored = findings.filter(f => f.status === 'error').length;
+    const confirmedCount = findings.filter(f => f.classification === 'confirmed_vulnerability').length;
+    const potentialCount = findings.filter(f => f.classification === 'potential_vulnerability').length;
+    const passCount      = findings.filter(f => f.classification === 'passed').length;
+    const notChecked     = findings.filter(f => f.classification === 'not_checked').length;
     summaryChips.innerHTML = [
-      `<span class="chip chip-pass">${passed} passed</span>`,
-      warned  ? `<span class="chip chip-warn">${warned} warning${warned > 1 ? 's' : ''}</span>` : '',
-      failed  ? `<span class="chip chip-fail">${failed} failed</span>` : '',
-      errored ? `<span class="chip chip-err">${errored} N/A</span>` : '',
-      `<span class="chip ${report === 'paid' ? 'chip-paid' : 'chip-free'}">${report === 'paid' ? 'Full Assessment' : 'Free Assessment'}</span>`,
+      confirmedCount ? `<span class="chip chip-fail">${confirmedCount} confirmed vulnerability${confirmedCount > 1 ? 's' : ''}</span>` : '',
+      potentialCount ? `<span class="chip chip-warn">${potentialCount} potential vulnerability${potentialCount > 1 ? 's' : ''}</span>` : '',
+      !confirmedCount && !potentialCount ? `<span class="chip chip-pass">No confirmed vulnerabilities</span>` : '',
+      `<span class="chip chip-pass">${passCount} passed</span>`,
+      notChecked ? `<span class="chip chip-err">${notChecked} not checked</span>` : '',
+      `<span class="chip ${report === 'paid' ? 'chip-paid' : 'chip-free'}">${report === 'paid' ? 'Deeper Assessment' : 'Surface Assessment'}</span>`,
     ].filter(Boolean).join('');
 
     // Top findings
@@ -448,21 +464,25 @@ const PAID_CHECK_PREVIEWS = [
       topFindingsSection.hidden = true;
     }
 
-    // Risk-grouped full list
+    // Classification-grouped full list (spec §13)
     const RISK_GROUPS = [
-      { key: 'critical', label: 'Critical Issues',    icon: '◆', color: '#ef4444' },
-      { key: 'high',     label: 'High Risk',          icon: '▲', color: '#f97316' },
-      { key: 'medium',   label: 'Medium Risk',        icon: '■', color: '#eab308' },
-      { key: 'low',      label: 'Low Risk',           icon: '◉', color: '#3b82f6' },
-      { key: 'pass',     label: 'Passing Checks',     icon: '✓', color: '#22c55e' },
-      { key: 'na',       label: 'Info / Not Checked', icon: '○', color: '#64748b' },
+      { key: 'confirmed',   label: 'Confirmed Vulnerabilities',   icon: '◆', color: '#ef4444' },
+      { key: 'potential',   label: 'Potential Vulnerabilities',   icon: '▲', color: '#f97316' },
+      { key: 'observation', label: 'Security Observations',       icon: '●', color: '#eab308' },
+      { key: 'hardening',   label: 'Hardening Recommendations',   icon: '◉', color: '#3b82f6' },
+      { key: 'pass',        label: 'Passed',                      icon: '✓', color: '#22c55e' },
+      { key: 'na',          label: 'Not Checked',                 icon: '○', color: '#64748b' },
     ];
 
     function getGroup(c) {
-      if (c.status === 'pass') return 'pass';
-      if (c.status === 'info' || c.status === 'error') return 'na';
-      const s = c.severity;
-      return (s === 'critical' || s === 'high' || s === 'medium') ? s : 'low';
+      switch (c.classification) {
+        case 'confirmed_vulnerability':  return 'confirmed';
+        case 'potential_vulnerability':  return 'potential';
+        case 'security_observation':     return 'observation';
+        case 'hardening_recommendation': return 'hardening';
+        case 'passed':                   return 'pass';
+        default: return c.status === 'pass' ? 'pass' : 'na';
+      }
     }
 
     const grouped = {};
@@ -566,6 +586,9 @@ const PAID_CHECK_PREVIEWS = [
             ${showSev ? `<span class="sev-badge sev-${f.severity}"><span class="sev-icon">${SEV_ICON[f.severity] ?? ''}</span>${SEV_LABEL[f.severity] ?? f.severity}</span>` : ''}
             ${isError ? '<span class="sev-badge sev-na">N/A</span>' : ''}
             ${confBadgeHtml}
+            ${f.classification && f.classification !== 'passed' && f.classification !== 'not_checked' ? `<span class="class-badge class-${f.classification.split('_')[0]}">${
+              { confirmed_vulnerability: 'Confirmed', potential_vulnerability: 'Potential', security_observation: 'Observation', hardening_recommendation: 'Recommendation' }[f.classification] ?? ''
+            }</span>` : ''}
           </div>
           <span class="check-finding">${escHtml(f.finding)}</span>
           ${inlineRefsHtml}
@@ -622,8 +645,10 @@ const PAID_CHECK_PREVIEWS = [
       const extraAssets = document.getElementById('additional-assets').value.trim();
       const scopeVal    = document.getElementById('scope-input').value.trim();
 
+      const apiUrlVal = apiUrlInput?.value?.trim() ?? '';
       let apiUrl = `/api/health-check?domain=${encodeURIComponent(domain)}&report=${reportType}`;
       if (authUrlVal)    apiUrl += `&authUrl=${encodeURIComponent(authUrlVal)}`;
+      if (apiUrlVal)     apiUrl += `&apiUrl=${encodeURIComponent(apiUrlVal)}`;
       if (extraAssets)   apiUrl += `&additionalAssets=${encodeURIComponent(extraAssets)}`;
       if (scopeVal)      apiUrl += `&scope=${encodeURIComponent(scopeVal)}`;
 
@@ -1036,12 +1061,34 @@ const PAID_CHECK_PREVIEWS = [
 
   /* ─── Risk sections ─────────────────────────────────────────────── */
   .risk-section { border-radius: 12px; overflow: hidden; border: 2px solid; }
-  .risk-section-critical { border-color: rgba(239,68,68,0.80); }
-  .risk-section-high     { border-color: rgba(249,115,22,0.75); }
-  .risk-section-medium   { border-color: rgba(234,179,8,0.70);  }
-  .risk-section-low      { border-color: rgba(59,130,246,0.65); }
-  .risk-section-pass     { border-color: rgba(34,197,94,0.60);  }
-  .risk-section-na       { border-color: rgba(100,116,139,0.45); }
+  .risk-section-confirmed   { border-color: rgba(239,68,68,0.80); }
+  .risk-section-potential   { border-color: rgba(249,115,22,0.75); }
+  .risk-section-observation { border-color: rgba(234,179,8,0.70);  }
+  .risk-section-hardening   { border-color: rgba(59,130,246,0.65); }
+  .risk-section-pass        { border-color: rgba(34,197,94,0.60);  }
+  .risk-section-na          { border-color: rgba(100,116,139,0.45); }
+
+  .score-indicator {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-align: right;
+    padding-top: 0.25rem;
+  }
+
+  .class-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .class-confirmed    { background: rgba(239,68,68,0.12);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.25); }
+  .class-potential    { background: rgba(249,115,22,0.12); color: #fdba74; border: 1px solid rgba(249,115,22,0.25); }
+  .class-security     { background: rgba(234,179,8,0.12);  color: #fde68a; border: 1px solid rgba(234,179,8,0.25); }
+  .class-hardening    { background: rgba(59,130,246,0.12); color: #93c5fd; border: 1px solid rgba(59,130,246,0.25); }
 
   .risk-header { display: flex; align-items: center; gap: 0.9rem; padding: 0.95rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.10); }
   .risk-critical { background: linear-gradient(90deg, rgba(239,68,68,0.55) 0%, rgba(239,68,68,0.30) 100%); color: #fca5a5; }

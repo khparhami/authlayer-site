@@ -2,6 +2,7 @@ export type FindingStatus = 'pass' | 'fail' | 'warn' | 'info' | 'error';
 export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'informational';
 export type Confidence = 'confirmed' | 'high' | 'medium' | 'low' | 'informational';
 export type Category =
+  | 'dns'
   | 'transport'
   | 'cookies'
   | 'headers'
@@ -10,6 +11,14 @@ export type Category =
   | 'exposure'
   | 'api'
   | 'authentication';
+
+export type FindingClassification =
+  | 'confirmed_vulnerability'
+  | 'potential_vulnerability'
+  | 'security_observation'
+  | 'hardening_recommendation'
+  | 'passed'
+  | 'not_checked';
 
 export interface Reference {
   label: string;
@@ -23,6 +32,7 @@ export interface Finding {
   status: FindingStatus;
   severity: Severity;
   confidence: Confidence;
+  classification?: FindingClassification;
   finding: string;
   detail?: string;
   business_impact?: string;
@@ -37,6 +47,7 @@ export interface Finding {
 export interface ScanContext {
   domain: string;
   authUrl: string | null;
+  apiUrl?: string | null;
   additionalAssets?: string[];
   scope?: string[];
 }

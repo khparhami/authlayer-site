@@ -185,4 +185,43 @@ const dkimRecord: SecurityTest = {
   },
 };
 
-export const EMAIL_TESTS: SecurityTest[] = [spfExists, spfStrength, dmarcExists, dmarcPolicy, dkimRecord];
+const mxRecords: SecurityTest = {
+  test_id: 'EMAIL-004',
+  name: 'MX Records',
+  version: '1.0.0',
+  category: 'email',
+  severity: 'informational',
+  confidence: 'confirmed',
+  owasp_mapping: 'A05:2021',
+  safe_for_production: true,
+  requires_active_testing: false,
+  async run({ domain }: ScanContext): Promise<Finding> {
+    const base = {
+      test_id: this.test_id, name: this.name, category: this.category,
+      severity: this.severity, confidence: this.confidence,
+      owasp_mapping: this.owasp_mapping,
+      detail: 'MX records define your mail infrastructure. Understanding your mail providers helps identify phishing risk surface and verify that SPF/DKIM/DMARC coverage aligns with your actual sending infrastructure.',
+      remediation: 'Ensure MX records only point to authorised mail infrastructure. Remove stale MX records for decommissioned mail servers. Verify SPF includes all mail providers listed here.',
+      references: [
+        { label: 'RFC 5321 — SMTP MX', url: 'https://tools.ietf.org/html/rfc5321#section-5.1' },
+      ],
+    };
+    try {
+      const data = await dnsQuery(domain, 'MX');
+      const records = data.Answer ?? [];
+      if (records.length === 0) {
+        return { ...base, status: 'info', finding: `No MX records found for ${domain} — domain may not accept email` };
+      }
+      const providers = records.map(r => r.data).join(', ');
+      return {
+        ...base, status: 'pass',
+        finding: `${records.length} MX record${records.length > 1 ? 's' : ''} found: ${providers}`,
+        evidence: providers,
+      };
+    } catch {
+      return { ...base, status: 'error', finding: 'Could not query MX records', errorReason: 'DNS-over-HTTPS query timed out.' };
+    }
+  },
+};
+
+export const EMAIL_TESTS: SecurityTest[] = [spfExists, spfStrength, dmarcExists, dmarcPolicy, dkimRecord, mxRecords];

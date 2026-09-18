@@ -20,30 +20,71 @@ const topics = [
 ---
 
 <BaseLayout
-  title="AuthLayer — Authentication & Cybersecurity Guides"
-  description="Plain-English guides to OAuth 2.0, JWT, MFA, passkeys, zero trust, and API security. Learn modern authentication without the jargon."
+  title="AuthLayer — External Security Assessment & Auth Guides"
+  description="See your website, APIs and authentication systems the way an attacker does. Free external security assessment plus plain-English guides to OAuth 2.0, JWT, MFA and more."
 >
-  <!-- Hero -->
+  <!-- Product Hero -->
   <section class="hero">
     <div class="container">
       <div class="hero-badge">
         <span class="dot"></span>
-        Authentication & Cybersecurity
+        External Security Assessment
       </div>
       <h1>
-        Understand Auth.<br />
-        <span class="gradient-text">Without the Jargon.</span>
+        See Your Company<br />
+        <span class="gradient-text">Through Attacker's Eyes.</span>
       </h1>
       <p class="hero-sub">
-        Deep dives into OAuth 2.0, JWT, MFA, passkeys, zero trust, and API security.
-        Built for developers who want to get it right.
+        Discover exposed assets, authentication weaknesses, API risks and security misconfigurations
+        from the perspective of an external attacker.
       </p>
       <div class="hero-actions">
-        <a href="/blog" class="btn btn-primary">Read the Blog</a>
-        <a href="/about" class="btn btn-ghost">About AuthLayer</a>
+        <a href="/tools/health-check" class="btn btn-primary">Run Free Assessment</a>
+        <a href="/blog" class="btn btn-ghost">Read the Blog</a>
       </div>
     </div>
     <div class="hero-glow" aria-hidden="true"></div>
+  </section>
+
+  <!-- What we test -->
+  <section class="product-section">
+    <div class="container">
+      <div class="product-grid">
+        <div class="product-item">
+          <span class="product-icon">🌐</span>
+          <strong>DNS & TLS</strong>
+          <p>Certificate validity, HSTS, DNS surface, CAA records</p>
+        </div>
+        <div class="product-item">
+          <span class="product-icon">🔐</span>
+          <strong>Authentication</strong>
+          <p>OAuth, OIDC, passkeys, session cookies, MFA signals</p>
+        </div>
+        <div class="product-item">
+          <span class="product-icon">📧</span>
+          <strong>Email Security</strong>
+          <p>SPF, DKIM, DMARC — protect your domain from spoofing</p>
+        </div>
+        <div class="product-item">
+          <span class="product-icon">🔍</span>
+          <strong>Exposure</strong>
+          <p>Sensitive files, admin panels, source maps, security.txt</p>
+        </div>
+        <div class="product-item">
+          <span class="product-icon">🛡</span>
+          <strong>HTTP Security</strong>
+          <p>CSP, CORS, clickjacking, referrer policy, permissions</p>
+        </div>
+        <div class="product-item">
+          <span class="product-icon">⚡</span>
+          <strong>Attack Surface</strong>
+          <p>Auth subdomains, API endpoints, IdP detection</p>
+        </div>
+      </div>
+      <div class="product-cta">
+        <a href="/tools/health-check" class="btn btn-primary">Run Free Security Assessment →</a>
+      </div>
+    </div>
   </section>
 
   <!-- Topics -->
@@ -274,4 +315,36 @@ const topics = [
 
   .cta-card h2 { color: #fff; font-size: 1.75rem; margin-bottom: 0.75rem; }
   .cta-card p { color: var(--text-dim); margin-bottom: 1.5rem; }
+
+  /* Product section */
+  .product-section {
+    padding: 2rem 0 4rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+
+  .product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .product-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.1rem 1.1rem 1rem;
+    transition: border-color 0.2s;
+  }
+
+  .product-item:hover { border-color: rgba(56,189,248,0.3); }
+
+  .product-icon { font-size: 1.3rem; display: block; margin-bottom: 0.5rem; }
+
+  .product-item strong { color: #fff; font-size: 0.9rem; display: block; margin-bottom: 0.3rem; }
+
+  .product-item p { color: var(--text-muted); font-size: 0.78rem; margin: 0; line-height: 1.5; }
+
+  .product-cta { text-align: center; }
 </style>
