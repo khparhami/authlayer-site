@@ -141,12 +141,17 @@ const PAID_CHECK_PREVIEWS = [
           <p id="domain-error" class="field-error" hidden>Enter a valid website URL or domain (e.g. https://example.com or example.com)</p>
 
           <div class="btn-row">
+            <button id="btn-run" class="btn btn-pro" type="button" disabled>
+              Run Assessment
+            </button>
+            <!-- Free/paid split — kept for future tiered plans
             <button id="btn-free" class="btn btn-primary" type="button" disabled>
               Run Free Assessment
             </button>
             <button id="btn-paid" class="btn btn-pro" type="button" disabled>
               Deeper Assessment
             </button>
+            -->
           </div>
         </div>
 
@@ -361,9 +366,11 @@ const PAID_CHECK_PREVIEWS = [
   const scopeInput       = document.getElementById('scope-input');
   const authCheckbox     = document.getElementById('auth-checkbox');
 
-  const btnFree    = document.getElementById('btn-free');
-  const btnPaid    = document.getElementById('btn-paid');
+  const btnRun     = document.getElementById('btn-run');
   const btnUpgrade = document.getElementById('btn-upgrade');
+  // Free/paid split — kept for future tiered plans
+  // const btnFree = document.getElementById('btn-free');
+  // const btnPaid = document.getElementById('btn-paid');
 
   const authError   = document.getElementById('auth-error');
   const domainError = document.getElementById('domain-error');
@@ -513,8 +520,7 @@ const PAID_CHECK_PREVIEWS = [
   // ─── Authorization toggle ───────────────────────────────────────────────────
   authCheckbox.addEventListener('change', () => {
     const checked = authCheckbox.checked;
-    btnFree.disabled = !checked;
-    btnPaid.disabled = !checked;
+    btnRun.disabled = !checked;
     authError.hidden = true;
   });
 
@@ -636,7 +642,7 @@ const PAID_CHECK_PREVIEWS = [
       `<span class="chip chip-pass">${passCount} passed</span>`,
       inconclusiveCount ? `<span class="chip chip-inconclusive">${inconclusiveCount} inconclusive</span>` : '',
       notChecked        ? `<span class="chip chip-err">${notChecked} not checked</span>` : '',
-      `<span class="chip ${report === 'paid' ? 'chip-paid' : 'chip-free'}">${report === 'paid' ? 'Deeper Assessment' : 'Surface Assessment'}</span>`,
+      `<span class="chip chip-paid">Deep Assessment</span>`,
       authenticated && authConnection
         ? `<span class="chip chip-auth">Authenticated · ${escHtml(authConnection.scopes?.join(' ') || 'OAuth')}</span>`
         : '',
@@ -728,19 +734,20 @@ const PAID_CHECK_PREVIEWS = [
       resultsList.appendChild(section);
     }
 
-    // Paid teaser
-    if (report === 'free') {
-      teaserList.innerHTML = PAID_CHECK_PREVIEWS.map(c =>
-        `<li class="teaser-item">
-          <span class="lock-pill">🔒</span>
-          <span class="teaser-check-name">${escHtml(c.name)}</span>
-          <span class="teaser-cat">${escHtml(CATEGORY_LABELS[c.category] ?? c.category)}</span>
-        </li>`
-      ).join('');
-      paidTeaser.hidden = false;
-    } else {
-      paidTeaser.hidden = true;
-    }
+    // Free/paid split — kept for future tiered plans
+    // if (report === 'free') {
+    //   teaserList.innerHTML = PAID_CHECK_PREVIEWS.map(c =>
+    //     `<li class="teaser-item">
+    //       <span class="lock-pill">🔒</span>
+    //       <span class="teaser-check-name">${escHtml(c.name)}</span>
+    //       <span class="teaser-cat">${escHtml(CATEGORY_LABELS[c.category] ?? c.category)}</span>
+    //     </li>`
+    //   ).join('');
+    //   paidTeaser.hidden = false;
+    // } else {
+    //   paidTeaser.hidden = true;
+    // }
+    paidTeaser.hidden = true;
   }
 
   function buildCard(f, compact) {
@@ -864,8 +871,7 @@ const PAID_CHECK_PREVIEWS = [
       : domain;
     startPhaseAnimation();
 
-    btnFree.disabled = true;
-    btnPaid.disabled = true;
+    btnRun.disabled = true;
 
     try {
       const authUrlVal = document.getElementById('auth-url-input').value.trim() || parsedAuthUrl;
@@ -894,13 +900,14 @@ const PAID_CHECK_PREVIEWS = [
       errorText.textContent = e.message ?? 'An unexpected error occurred';
       setState('error');
     } finally {
-      btnFree.disabled  = !authCheckbox.checked;
-      btnPaid.disabled  = !authCheckbox.checked;
+      btnRun.disabled = !authCheckbox.checked;
     }
   }
 
-  btnFree.addEventListener('click',    () => runReport('free'));
-  btnPaid.addEventListener('click',    () => runReport('paid'));
+  btnRun.addEventListener('click', () => runReport('paid'));
+  // Free/paid split — kept for future tiered plans
+  // btnFree.addEventListener('click', () => runReport('free'));
+  // btnPaid.addEventListener('click', () => runReport('paid'));
   btnUpgrade?.addEventListener('click',() => runReport('paid'));
 
   domainInput.addEventListener('keydown', e => {
