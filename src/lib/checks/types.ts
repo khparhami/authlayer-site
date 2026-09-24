@@ -10,7 +10,8 @@ export type Category =
   | 'oauth'
   | 'exposure'
   | 'api'
-  | 'authentication';
+  | 'authentication'
+  | 'domain';
 
 export type FindingClassification =
   | 'confirmed_vulnerability'
@@ -75,6 +76,7 @@ export interface ScanResult {
   auditLog?: import('../assessment/types.js').AuditEntry[];
   authenticated?: boolean;
   authConnection?: import('../auth/types.js').AuthConnectionInfo;
+  domainMonitoring?: import('./domain-monitoring.js').DomainMonitoringResult;
 }
 
 export interface SecurityTest {

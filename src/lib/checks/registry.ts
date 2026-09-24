@@ -2,6 +2,7 @@ import type { SecurityTest, ScanContext, ScanResult, Finding, FindingClassificat
 import type { Asset, AttackSurface } from '../assessment/types.js';
 import { runPipeline } from '../assessment/engine.js';
 import { correlateFindings } from '../assessment/correlation.js';
+import { runDomainMonitoring } from './domain-monitoring.js';
 import { DNS_TESTS } from './dns.js';
 import { TRANSPORT_TESTS } from './transport.js';
 import { COOKIE_TESTS } from './cookies.js';
@@ -125,9 +126,13 @@ export async function runScan(
     ? [...tests, ...API_TESTS]
     : tests;
 
-  const { findings: rawFindings, auditLog, durationMs, httpRequestCount } = await runPipeline(
-    ctx, effectiveTests, { assessmentId, concurrency: 6, retries: 2, retryDelayMs: 350 }
-  );
+  const [
+    { findings: rawFindings, auditLog, durationMs, httpRequestCount },
+    domainMonitoring,
+  ] = await Promise.all([
+    runPipeline(ctx, effectiveTests, { assessmentId, concurrency: 6, retries: 2, retryDelayMs: 350 }),
+    runDomainMonitoring(ctx.domain, ctx.additionalAssets).catch(() => undefined),
+  ]);
 
   const findings: Finding[] = rawFindings.map(raw => ({ ...raw, classification: classifyFinding(raw) }));
   const correlatedFindings = correlateFindings(findings);
@@ -178,5 +183,6 @@ export async function runScan(
     topFindings,
     attackSurface: surface,
     auditLog,
+    domainMonitoring,
   };
 }
