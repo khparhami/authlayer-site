@@ -1,0 +1,782 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Domain Threat Detection | AuthLayer"
+  description="Discover lookalike domains, typosquats, and suspicious infrastructure targeting your brand. Real-time scan using DNS, Certificate Transparency logs, and pattern analysis."
+>
+  <section class="dm-page">
+    <div class="container">
+
+      <header class="page-header">
+        <span class="tag">Tools</span>
+        <h1>Domain Threat Detection</h1>
+        <p class="subtitle">
+          Discover typosquats, lookalike domains, and suspicious infrastructure targeting your brand.
+          Checks DNS resolution, Certificate Transparency logs, homoglyphs, phishing keyword patterns, and TLD variants.
+        </p>
+      </header>
+
+      <!-- ── Scan form ──────────────────────────────────────────── -->
+      <div class="scan-form" id="scan-form">
+        <div class="field-group">
+          <label for="domain-input">Domain to protect</label>
+          <div class="input-row">
+            <input
+              id="domain-input"
+              type="text"
+              placeholder="example.com"
+              autocomplete="off"
+              spellcheck="false"
+              autocorrect="off"
+              autocapitalize="off"
+            />
+            <button id="scan-btn" type="button">Scan Domain</button>
+          </div>
+          <p class="field-hint">Enter your root domain — e.g. <code>acme.com</code>, not <code>https://www.acme.com</code></p>
+        </div>
+      </div>
+
+      <!-- ── Error banner ───────────────────────────────────────── -->
+      <div id="error-banner" class="error-banner" hidden></div>
+
+      <!-- ── Loading state ─────────────────────────────────────── -->
+      <div id="loading-state" class="loading-state" hidden>
+        <div class="loading-inner">
+          <span class="spinner"></span>
+          <div class="loading-text">
+            <span class="loading-title">Scanning for lookalike domains…</span>
+            <span class="loading-sub" id="loading-sub">Generating typosquat variants</span>
+          </div>
+        </div>
+        <div class="loading-phases" id="loading-phases">
+          <div class="lp-item active" id="lp-variants">
+            <span class="lp-dot"></span>Variant generation
+          </div>
+          <div class="lp-item" id="lp-dns">
+            <span class="lp-dot"></span>DNS resolution checks
+          </div>
+          <div class="lp-item" id="lp-ct">
+            <span class="lp-dot"></span>Certificate Transparency logs
+          </div>
+          <div class="lp-item" id="lp-scoring">
+            <span class="lp-dot"></span>Risk scoring
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Results ────────────────────────────────────────────── -->
+      <div id="results" hidden></div>
+
+    </div>
+  </section>
+</BaseLayout>
+
+<style is:global>
+/* ─── Page layout ──────────────────────────────────────────────────────────── */
+.dm-page { padding: 4rem 0 6rem; }
+
+.dm-page .page-header {
+  margin-bottom: 2.5rem;
+  max-width: 680px;
+}
+.dm-page .page-header h1 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); margin-bottom: 0.5rem; }
+.dm-page .page-header .subtitle { color: var(--text-dim); font-size: 0.95rem; line-height: 1.7; }
+.dm-page .page-header .tag { margin-bottom: 0.75rem; }
+
+/* ─── Scan form ────────────────────────────────────────────────────────────── */
+.scan-form {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.75rem;
+  max-width: 680px;
+  margin-bottom: 2rem;
+}
+
+.field-group label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.input-row {
+  display: flex;
+  gap: 0.75rem;
+}
+@media (max-width: 520px) { .input-row { flex-direction: column; } }
+
+.input-row input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: var(--font-mono);
+  outline: none;
+  transition: border-color 0.2s;
+  min-width: 0;
+}
+.input-row input:focus { border-color: var(--accent); }
+.input-row input::placeholder { color: var(--text-muted); font-family: var(--font-sans); }
+
+.input-row button {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1.4rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s, background 0.2s;
+}
+.input-row button:hover:not(:disabled) { opacity: 0.88; }
+.input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.field-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+.field-hint code { font-size: 0.78rem; }
+
+/* ─── Error ────────────────────────────────────────────────────────────────── */
+.error-banner {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 8px;
+  padding: 0.85rem 1.1rem;
+  color: #f87171;
+  font-size: 0.88rem;
+  max-width: 680px;
+  margin-bottom: 1.5rem;
+}
+
+/* ─── Loading ──────────────────────────────────────────────────────────────── */
+.loading-state {
+  max-width: 680px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.75rem;
+  margin-bottom: 2rem;
+}
+
+.loading-inner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-title { display: block; font-size: 0.92rem; font-weight: 600; color: var(--text); }
+.loading-sub { display: block; font-size: 0.78rem; color: var(--text-dim); margin-top: 0.2rem; }
+
+.loading-phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.lp-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+.lp-item.active { color: var(--accent); }
+.lp-item.done { color: var(--green); }
+
+.lp-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ─── Results wrapper ──────────────────────────────────────────────────────── */
+#results { max-width: 900px; }
+
+/* ─── Summary cards ────────────────────────────────────────────────────────── */
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+}
+.summary-card.highlight { border-color: rgba(248, 113, 113, 0.35); }
+
+.sc-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+.sc-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.sc-value.danger { color: #f87171; }
+.sc-value.warn   { color: #fbbf24; }
+.sc-value.ok     { color: var(--green); }
+.sc-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+}
+
+/* ─── Section header ───────────────────────────────────────────────────────── */
+.results-section { margin-bottom: 2.5rem; }
+.results-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.results-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.results-section-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ─── Risk level breakdown ─────────────────────────────────────────────────── */
+.risk-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 2rem;
+}
+
+.risk-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35em 0.8em;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid;
+  letter-spacing: 0.04em;
+}
+.risk-pill.highest { background: rgba(248,113,113,0.1); color: #f87171; border-color: rgba(248,113,113,0.25); }
+.risk-pill.high    { background: rgba(251,146,60,0.1);  color: #fb923c; border-color: rgba(251,146,60,0.25); }
+.risk-pill.medium  { background: rgba(251,191,36,0.1);  color: #fbbf24; border-color: rgba(251,191,36,0.25); }
+.risk-pill.low     { background: rgba(96,165,250,0.08); color: #60a5fa; border-color: rgba(96,165,250,0.2); }
+.risk-pill.lowest  { background: rgba(100,116,139,0.08); color: var(--text-muted); border-color: rgba(100,116,139,0.2); }
+
+.risk-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ─── Domain table ─────────────────────────────────────────────────────────── */
+.domain-table-wrap { overflow-x: auto; }
+
+.domain-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.domain-table th {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.domain-table td {
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid rgba(30,42,69,0.5);
+  vertical-align: middle;
+}
+
+.domain-table tr:last-child td { border-bottom: none; }
+
+.domain-table tr:hover td { background: rgba(255,255,255,0.015); }
+
+.dt-domain {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.dt-risk {
+  white-space: nowrap;
+}
+
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.25em 0.6em;
+  border-radius: 4px;
+  border: 1px solid;
+}
+.risk-badge.highest { background: rgba(248,113,113,0.1); color: #f87171; border-color: rgba(248,113,113,0.3); }
+.risk-badge.high    { background: rgba(251,146,60,0.1);  color: #fb923c; border-color: rgba(251,146,60,0.3); }
+.risk-badge.medium  { background: rgba(251,191,36,0.1);  color: #fbbf24; border-color: rgba(251,191,36,0.3); }
+.risk-badge.low     { background: rgba(96,165,250,0.08); color: #60a5fa; border-color: rgba(96,165,250,0.2); }
+.risk-badge.lowest  { background: rgba(100,116,139,0.08); color: var(--text-muted); border-color: rgba(100,116,139,0.2); }
+
+.attack-type {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-dot::before {
+  content: '';
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot.active  { color: #f87171; }
+.status-dot.active::before  { background: #f87171; }
+.status-dot.inactive { color: var(--text-muted); }
+.status-dot.inactive::before { background: var(--text-muted); }
+
+.dt-reasons {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ─── CT subdomains ────────────────────────────────────────────────────────── */
+.ct-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.4rem;
+}
+.ct-entry {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ct-show-more {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-top: 0.75rem;
+  transition: border-color 0.2s, color 0.2s;
+}
+.ct-show-more:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ─── Empty/ok state ───────────────────────────────────────────────────────── */
+.ok-state {
+  background: rgba(52,211,153,0.06);
+  border: 1px solid rgba(52,211,153,0.18);
+  border-radius: 10px;
+  padding: 1.5rem;
+  color: var(--green);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  max-width: 600px;
+}
+.ok-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 0.1rem; }
+.ok-title { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.25rem; }
+.ok-body { font-size: 0.82rem; color: var(--text-dim); line-height: 1.6; }
+
+/* ─── Disclaimer ───────────────────────────────────────────────────────────── */
+.scan-disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  margin-top: 2rem;
+  max-width: 680px;
+  line-height: 1.7;
+}
+
+/* ─── Target heading ───────────────────────────────────────────────────────── */
+.results-target {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+}
+.results-target strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+</style>
+
+<script>
+const domainInput  = document.getElementById('domain-input') as HTMLInputElement;
+const scanBtn      = document.getElementById('scan-btn')     as HTMLButtonElement;
+const errorBanner  = document.getElementById('error-banner') as HTMLDivElement;
+const loadingState = document.getElementById('loading-state') as HTMLDivElement;
+const loadingSub   = document.getElementById('loading-sub')   as HTMLSpanElement;
+const resultsEl    = document.getElementById('results')       as HTMLDivElement;
+
+// Loading phase elements
+const lpVariants = document.getElementById('lp-variants') as HTMLElement;
+const lpDns      = document.getElementById('lp-dns')      as HTMLElement;
+const lpCt       = document.getElementById('lp-ct')       as HTMLElement;
+const lpScoring  = document.getElementById('lp-scoring')  as HTMLElement;
+
+const PHASE_SEQUENCE: [HTMLElement, string, number][] = [
+  [lpVariants, 'Generating typosquat variants…', 0],
+  [lpDns,      'Checking DNS resolution for candidates…', 1800],
+  [lpCt,       'Querying Certificate Transparency logs…', 5000],
+  [lpScoring,  'Scoring and classifying results…', 11000],
+];
+
+let phaseTimer: ReturnType<typeof setTimeout>[] = [];
+
+function startPhaseAnimation() {
+  phaseTimer.forEach(t => clearTimeout(t));
+  phaseTimer = [];
+
+  const items = [lpVariants, lpDns, lpCt, lpScoring];
+  items.forEach(el => { el.classList.remove('active', 'done'); });
+
+  PHASE_SEQUENCE.forEach(([el, label, delay], i) => {
+    phaseTimer.push(setTimeout(() => {
+      // Mark previous phase done
+      if (i > 0) {
+        const prev = PHASE_SEQUENCE[i - 1][0];
+        prev.classList.remove('active');
+        prev.classList.add('done');
+      }
+      el.classList.add('active');
+      loadingSub.textContent = label;
+    }, delay));
+  });
+}
+
+function stopPhaseAnimation() {
+  phaseTimer.forEach(t => clearTimeout(t));
+  phaseTimer = [];
+  [lpVariants, lpDns, lpCt, lpScoring].forEach(el => {
+    el.classList.remove('active');
+    el.classList.add('done');
+  });
+}
+
+function showError(msg: string) {
+  errorBanner.textContent = msg;
+  errorBanner.hidden = false;
+  loadingState.hidden = true;
+  resultsEl.hidden = true;
+  scanBtn.disabled = false;
+}
+
+function formatAttackType(t: string): string {
+  const map: Record<string, string> = {
+    typosquat: 'Typosquat',
+    homoglyph: 'Homoglyph',
+    phishing_keyword: 'Phishing keyword',
+    tld_variant: 'TLD variant',
+    ct_discovered: 'CT-discovered',
+  };
+  return map[t] ?? t;
+}
+
+function buildResults(domain: string, data: {
+  scanned: number;
+  resolving: number;
+  ctSubdomains: string[];
+  lookalikeDomains: Array<{
+    domain: string;
+    riskLevel: string;
+    riskScore: number;
+    resolves: boolean;
+    attackType: string;
+    reasons: string[];
+  }>;
+}) {
+  const { scanned, resolving, ctSubdomains, lookalikeDomains } = data;
+
+  // Risk counts
+  const riskCounts: Record<string, number> = { highest: 0, high: 0, medium: 0, low: 0, lowest: 0 };
+  for (const d of lookalikeDomains) {
+    if (d.riskLevel in riskCounts) riskCounts[d.riskLevel]++;
+  }
+
+  const highestRisk = riskCounts.highest > 0 ? 'danger'
+    : riskCounts.high > 0 ? 'warn'
+    : 'ok';
+
+  const activeCount = lookalikeDomains.filter(d => d.resolves).length;
+
+  // ── Summary cards
+  const summaryHtml = `
+    <div class="summary-row">
+      <div class="summary-card">
+        <div class="sc-label">Variants scanned</div>
+        <div class="sc-value">${scanned}</div>
+        <div class="sc-sub">lookalike patterns checked</div>
+      </div>
+      <div class="summary-card ${activeCount > 0 ? 'highlight' : ''}">
+        <div class="sc-label">Active lookalikes</div>
+        <div class="sc-value ${activeCount > 0 ? 'danger' : 'ok'}">${activeCount}</div>
+        <div class="sc-sub">domains currently resolving</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">CT subdomains</div>
+        <div class="sc-value ${ctSubdomains.length > 0 ? 'warn' : 'ok'}">${ctSubdomains.length}</div>
+        <div class="sc-sub">found in cert logs</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Total flagged</div>
+        <div class="sc-value ${lookalikeDomains.length > 0 ? 'warn' : 'ok'}">${lookalikeDomains.length}</div>
+        <div class="sc-sub">require review</div>
+      </div>
+    </div>
+  `;
+
+  // ── Risk breakdown
+  let riskBreakdown = '';
+  if (lookalikeDomains.length > 0) {
+    const pills = (['highest', 'high', 'medium', 'low', 'lowest'] as const)
+      .filter(lvl => riskCounts[lvl] > 0)
+      .map(lvl => `
+        <div class="risk-pill ${lvl}">
+          <span class="risk-pill-dot"></span>
+          ${lvl.charAt(0).toUpperCase() + lvl.slice(1)}: ${riskCounts[lvl]}
+        </div>
+      `).join('');
+    riskBreakdown = `<div class="risk-breakdown">${pills}</div>`;
+  }
+
+  // ── Lookalike domains table
+  let tableHtml = '';
+  if (lookalikeDomains.length === 0) {
+    tableHtml = `
+      <div class="ok-state">
+        <span class="ok-icon">✓</span>
+        <div>
+          <div class="ok-title">No suspicious lookalike domains detected</div>
+          <div class="ok-body">
+            No typosquats, homoglyphs, or phishing-keyword variants of <strong>${escapeHtml(domain)}</strong>
+            were found resolving in DNS. This is a point-in-time result —
+            monitor regularly as new domains are registered daily.
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    const rows = lookalikeDomains.map(d => `
+      <tr>
+        <td class="dt-domain">${escapeHtml(d.domain)}</td>
+        <td class="dt-risk">
+          <span class="risk-badge ${d.riskLevel}">${d.riskLevel.toUpperCase()}</span>
+        </td>
+        <td class="attack-type">${formatAttackType(d.attackType)}</td>
+        <td>
+          <span class="status-dot ${d.resolves ? 'active' : 'inactive'}">
+            ${d.resolves ? 'Active' : 'Inactive'}
+          </span>
+        </td>
+        <td class="dt-reasons">${d.reasons.map(r => escapeHtml(r)).join('<br>')}</td>
+      </tr>
+    `).join('');
+
+    tableHtml = `
+      <div class="results-section">
+        <div class="results-section-header">
+          <span class="results-section-title">Lookalike Domains</span>
+          <span class="results-section-count">${lookalikeDomains.length} result${lookalikeDomains.length !== 1 ? 's' : ''}</span>
+        </div>
+        ${riskBreakdown}
+        <div class="domain-table-wrap">
+          <table class="domain-table">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Risk</th>
+                <th>Attack type</th>
+                <th>DNS status</th>
+                <th>Signals</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // ── CT subdomains
+  let ctHtml = '';
+  if (ctSubdomains.length > 0) {
+    const INITIAL_SHOW = 24;
+    const visible = ctSubdomains.slice(0, INITIAL_SHOW);
+    const hidden  = ctSubdomains.slice(INITIAL_SHOW);
+
+    const visibleItems = visible.map(s => `<div class="ct-entry">${escapeHtml(s)}</div>`).join('');
+    const hiddenItems  = hidden.map(s =>  `<div class="ct-entry">${escapeHtml(s)}</div>`).join('');
+
+    ctHtml = `
+      <div class="results-section">
+        <div class="results-section-header">
+          <span class="results-section-title">Certificate Transparency Subdomains</span>
+          <span class="results-section-count">${ctSubdomains.length} found</span>
+        </div>
+        <div class="ct-grid" id="ct-grid-visible">${visibleItems}</div>
+        ${hidden.length > 0 ? `
+          <div class="ct-grid" id="ct-grid-hidden" hidden>${hiddenItems}</div>
+          <button class="ct-show-more" id="ct-toggle">
+            Show ${hidden.length} more subdomains
+          </button>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  // ── Disclaimer
+  const disclaimer = `
+    <p class="scan-disclaimer">
+      <strong>Point-in-time scan.</strong> Results reflect DNS resolution and CT log state at the time of this scan.
+      New lookalike domains are registered daily. Domain similarity alone is not evidence of malicious intent —
+      a resemblance may be coincidence, a reseller, or a partner. Treat high-risk active domains as
+      requiring manual investigation, not as confirmed threats.
+    </p>
+  `;
+
+  resultsEl.innerHTML = `
+    <p class="results-target">Results for <strong>${escapeHtml(domain)}</strong></p>
+    ${summaryHtml}
+    ${tableHtml}
+    ${ctHtml}
+    ${disclaimer}
+  `;
+
+  // Wire up CT toggle
+  const ctToggle = document.getElementById('ct-toggle');
+  const ctHiddenGrid = document.getElementById('ct-grid-hidden');
+  if (ctToggle && ctHiddenGrid) {
+    ctToggle.addEventListener('click', () => {
+      ctHiddenGrid.hidden = !ctHiddenGrid.hidden;
+      ctToggle.textContent = ctHiddenGrid.hidden
+        ? `Show ${hidden.length} more subdomains`
+        : 'Show fewer';
+    });
+  }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function runScan() {
+  const raw = domainInput.value.trim();
+  if (!raw) {
+    domainInput.focus();
+    return;
+  }
+
+  // Strip protocol/path if user pastes a full URL
+  let domain = raw.replace(/^https?:\/\//i, '').split('/')[0].toLowerCase().trim();
+
+  errorBanner.hidden = true;
+  loadingState.hidden = false;
+  resultsEl.hidden = true;
+  resultsEl.innerHTML = '';
+  scanBtn.disabled = true;
+
+  startPhaseAnimation();
+
+  try {
+    const res = await fetch(`/api/domain-monitoring?domain=${encodeURIComponent(domain)}`);
+    const data = await res.json();
+
+    stopPhaseAnimation();
+    loadingState.hidden = true;
+
+    if (!res.ok || data.error) {
+      showError(data.error ?? `Scan failed (HTTP ${res.status})`);
+      return;
+    }
+
+    buildResults(domain, data);
+    resultsEl.hidden = false;
+  } catch (err) {
+    stopPhaseAnimation();
+    showError('Network error — please check your connection and try again.');
+  } finally {
+    scanBtn.disabled = false;
+  }
+}
+
+scanBtn.addEventListener('click', runScan);
+domainInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') runScan();
+});
+</script>
