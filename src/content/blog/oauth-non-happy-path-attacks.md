@@ -4,7 +4,7 @@ description: "The attacks landing on OAuth implementations in 2024-2025 don't br
 pubDate: 2026-09-24
 author: "Khashayar Parhami"
 tags: ["oauth", "security", "identity", "oidc", "vulnerabilities"]
-image: "/images/og/oauth-non-happy-path.jpg"
+image: "/images/og/oauth2.jpg"
 featured: false
 ---
 

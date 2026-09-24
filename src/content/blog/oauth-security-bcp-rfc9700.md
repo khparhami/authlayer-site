@@ -4,7 +4,7 @@ description: "The OAuth 2.0 Security Best Current Practice is now an RFC. It pro
 pubDate: 2026-09-24
 author: "Khashayar Parhami"
 tags: ["oauth", "security", "identity", "developer-security"]
-image: "/images/og/oauth-security-bcp.jpg"
+image: "/images/og/pkce.jpg"
 featured: false
 ---
 
