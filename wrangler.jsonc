@@ -24,18 +24,13 @@
 		{
 			"binding": "DB",
 			"database_name": "authlayer-p4",
-			"database_id": "dbab2267-43c2-45e5-a362-6977548e0f51",
-			"remote": true
+			"database_id": "dbab2267-43c2-45e5-a362-6977548e0f51"
 		}
 	],
 	"queues": {
 		"producers": [
 			{ "binding": "DISCOVERY_QUEUE", "queue": "domain-discovery" },
 			{ "binding": "RESCAN_QUEUE",    "queue": "domain-rescan" }
-		],
-		"consumers": [
-			{ "queue": "domain-discovery", "max_batch_size": 10, "max_batch_timeout": 5 },
-			{ "queue": "domain-rescan",    "max_batch_size": 25, "max_batch_timeout": 10 }
 		]
 	}
 }
