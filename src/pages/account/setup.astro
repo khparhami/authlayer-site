@@ -1,0 +1,196 @@
+---
+export const prerender = false;
+
+import AccountLayout from '@/layouts/AccountLayout.astro';
+import { getDB, getUserEmail, upsertUser } from '@/lib/db/client.js';
+
+const email = getUserEmail(Astro.request);
+if (!email) return Astro.redirect('/');
+
+const db = getDB(Astro.locals as Record<string, unknown>);
+if (!db) return new Response('Database unavailable', { status: 503 });
+
+// If already has an org, go to dashboard
+const user = await upsertUser(db, email);
+if (user.org_id) return Astro.redirect('/account');
+
+const error = Astro.url.searchParams.get('error');
+---
+
+<AccountLayout title="Set up your organisation" userEmail={email}>
+  <div class="setup-page">
+
+    <div class="setup-card">
+      <div class="setup-eyebrow">Getting started</div>
+      <h1 class="setup-title">Set up your organisation</h1>
+      <p class="setup-sub">
+        Tell us about your brand so we know what to protect. You can add more brands and
+        domains later from Settings.
+      </p>
+
+      {error && (
+        <div class="error-banner">
+          {error === 'missing_fields' && 'Organisation name and at least one domain are required.'}
+          {error === 'invalid_domain' && 'One or more domains look invalid. Use format: example.com'}
+          {error === 'db_error' && 'Something went wrong saving your profile. Please try again.'}
+          {!['missing_fields', 'invalid_domain', 'db_error'].includes(error) && 'An error occurred. Please try again.'}
+        </div>
+      )}
+
+      <form id="setup-form" method="POST" action="/api/account/setup">
+
+        <div class="field">
+          <label for="org-name">Organisation name <span class="req">*</span></label>
+          <input
+            id="org-name"
+            name="org_name"
+            type="text"
+            placeholder="Acme Corp"
+            autocomplete="organization"
+            required
+          />
+        </div>
+
+        <div class="field">
+          <label for="domains">
+            Domains to protect <span class="req">*</span>
+            <span class="hint">one per line</span>
+          </label>
+          <textarea
+            id="domains"
+            name="domains"
+            rows="3"
+            placeholder={"acme.com\nacmepayments.com"}
+            spellcheck="false"
+            autocomplete="off"
+            required
+          ></textarea>
+          <p class="field-note">Enter your root domains — e.g. <code>acme.com</code>. These become your known-asset allowlist.</p>
+        </div>
+
+        <div class="field">
+          <label for="brands">
+            Brand names
+            <span class="opt">optional</span>
+            <span class="hint">one per line</span>
+          </label>
+          <textarea
+            id="brands"
+            name="brands"
+            rows="2"
+            placeholder={"Acme\nAcme Payments"}
+            spellcheck="false"
+            autocomplete="off"
+          ></textarea>
+          <p class="field-note">Names attackers might spoof in domain names or page content.</p>
+        </div>
+
+        <button type="submit" class="submit-btn">Create organisation →</button>
+      </form>
+    </div>
+
+  </div>
+</AccountLayout>
+
+<style>
+.setup-page {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 4rem 1.5rem;
+  min-height: 100vh;
+}
+
+.setup-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2.25rem 2rem;
+  width: 100%;
+  max-width: 500px;
+}
+
+.setup-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+.setup-title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.6rem; }
+.setup-sub { font-size: 0.85rem; color: var(--text-dim); line-height: 1.65; margin-bottom: 1.75rem; }
+
+.error-banner {
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.25);
+  border-radius: 7px;
+  padding: 0.75rem 1rem;
+  color: #f87171;
+  font-size: 0.83rem;
+  margin-bottom: 1.25rem;
+}
+
+.field { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.25rem; }
+
+.field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.req { color: #f87171; }
+.opt {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 0.1em 0.45em;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.hint { font-size: 0.7rem; color: var(--text-muted); font-weight: 400; }
+
+.field input,
+.field textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.65rem 0.85rem;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-family: var(--font-sans);
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+.field textarea { font-family: var(--font-mono); font-size: 0.82rem; }
+.field input:focus,
+.field textarea:focus { border-color: var(--accent); }
+.field input::placeholder,
+.field textarea::placeholder { color: var(--text-muted); }
+
+.field-note { font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; }
+.field-note code { font-size: 0.75rem; }
+
+.submit-btn {
+  width: 100%;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 0.8rem 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: opacity 0.15s;
+}
+.submit-btn:hover { opacity: 0.88; }
+.submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>

@@ -1,0 +1,249 @@
+---
+interface Props {
+  title: string;
+  userEmail: string;
+  orgName?: string;
+  activeNav?: 'dashboard' | 'domains' | 'review' | 'settings';
+}
+
+const { title, userEmail, orgName, activeNav = 'dashboard' } = Astro.props;
+
+const nav = [
+  { id: 'dashboard', label: 'Dashboard',    href: '/account',          icon: '▦' },
+  { id: 'domains',   label: 'Domains',       href: '/account/domains',  icon: '⬡', soon: true },
+  { id: 'review',    label: 'Review Queue',  href: '/account/review',   icon: '◈', soon: true },
+  { id: 'settings',  label: 'Settings',      href: '/account/settings', icon: '⚙', soon: true },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} | AuthLayer</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <div class="account-layout">
+
+      <!-- ── Sidebar ──────────────────────────────────────────── -->
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <a href="/" class="wordmark">AuthLayer</a>
+          {orgName && <div class="org-name">{orgName}</div>}
+
+          <nav class="nav">
+            {nav.map(item => (
+              <a
+                href={item.soon ? '#' : item.href}
+                class={`nav-item ${activeNav === item.id ? 'active' : ''} ${item.soon ? 'soon' : ''}`}
+                aria-current={activeNav === item.id ? 'page' : undefined}
+              >
+                <span class="nav-icon">{item.icon}</span>
+                <span>{item.label}</span>
+                {item.soon && <span class="soon-badge">Soon</span>}
+              </a>
+            ))}
+          </nav>
+        </div>
+
+        <div class="sidebar-bottom">
+          <div class="user-row">
+            <div class="user-avatar">{userEmail[0].toUpperCase()}</div>
+            <div class="user-email" title={userEmail}>{userEmail}</div>
+          </div>
+          <a href="https://authlayer.dev" class="back-link">← Back to site</a>
+        </div>
+      </aside>
+
+      <!-- ── Main ─────────────────────────────────────────────── -->
+      <main class="main">
+        <slot />
+      </main>
+
+    </div>
+  </body>
+</html>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+:root {
+  --bg:         #080c18;
+  --bg-card:    #0f1526;
+  --bg-hover:   #161d35;
+  --border:     #1e2a45;
+  --border-dim: #131e35;
+  --accent:     #38bdf8;
+  --green:      #34d399;
+  --purple:     #818cf8;
+  --text:       #e2e8f0;
+  --text-dim:   #94a3b8;
+  --text-muted: #4a5568;
+  --sidebar-w:  220px;
+  --font-sans:  'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:  'JetBrains Mono', 'Fira Code', monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.account-layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: 100vh;
+}
+@media (max-width: 768px) {
+  .account-layout { grid-template-columns: 1fr; }
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--bg-card);
+  border-right: 1px solid var(--border-dim);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 1.5rem 1rem;
+}
+@media (max-width: 768px) {
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-dim);
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+  }
+}
+
+.sidebar-top { flex: 1; display: flex; flex-direction: column; gap: 0; }
+@media (max-width: 768px) { .sidebar-top { flex-direction: row; align-items: center; gap: 1rem; flex: 1; } }
+
+.wordmark {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  text-decoration: none;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+@media (max-width: 768px) { .wordmark { margin-bottom: 0; } }
+
+.org-name {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 1.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 768px) { .org-name { display: none; } }
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+@media (max-width: 768px) { .nav { flex-direction: row; } }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 7px;
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.nav-item:hover:not(.soon) { background: var(--bg-hover); color: var(--text); }
+.nav-item.active { background: rgba(56,189,248,0.1); color: var(--accent); }
+.nav-item.soon { opacity: 0.45; cursor: default; }
+
+.nav-icon { font-size: 0.9rem; flex-shrink: 0; }
+
+.soon-badge {
+  margin-left: auto;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--border);
+  color: var(--text-muted);
+  padding: 0.15em 0.45em;
+  border-radius: 3px;
+}
+@media (max-width: 768px) { .soon-badge { display: none; } }
+
+/* ── Sidebar bottom ───────────────────────────────────────────── */
+.sidebar-bottom {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+@media (max-width: 768px) { .sidebar-bottom { display: none; } }
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  overflow: hidden;
+}
+
+.user-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(56,189,248,0.15);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-email {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.back-link {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.back-link:hover { color: var(--text-dim); }
+
+/* ── Main ─────────────────────────────────────────────────────── */
+.main {
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+</style>

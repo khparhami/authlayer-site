@@ -1,18 +1,41 @@
 {
-  "name": "authlayer-site",
-  "compatibility_date": "2026-04-29",
-  "main": "./dist/_worker.js/index.js",
-  "assets": {
-    "directory": "./dist"
-  },
-  "kv_namespaces": [
-    { "binding": "RATE_LIMIT_KV", "id": "f0eebc61d2414d2a8d59b69142f66ac9", "preview_id": "7e4d309b28b445aea6c6509b9cb67a0a" }
-  ],
-  "vars": {
-    "GOOGLE_CLIENT_ID": "570818895924-sclhhtrm4a94dp892ts0b0v88ggg4ovc.apps.googleusercontent.com",
-    "CF_ACCOUNT_ID": "09cb4650f4cdacdcc1d0fd160aa3c114",
-    "CF_ZONE_ID": "98bb290d6da3ef66dfb15089fbefa120",
-    "CF_SITE_TAG": "cd15295bccd647f99cbec327a82a07dc",
-    "PUBLIC_CF_SITE_TAG": "cd15295bccd647f99cbec327a82a07dc"
-  }
+	"name": "authlayer-site",
+	"compatibility_date": "2026-04-29",
+	"main": "./dist/_worker.js/index.js",
+	"assets": {
+		"directory": "./dist"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "RATE_LIMIT_KV",
+			"id": "f0eebc61d2414d2a8d59b69142f66ac9",
+			"preview_id": "7e4d309b28b445aea6c6509b9cb67a0a"
+		}
+	],
+	"vars": {
+		"DEV_USER_EMAIL": "dev@authlayer.dev",
+		"GOOGLE_CLIENT_ID": "570818895924-sclhhtrm4a94dp892ts0b0v88ggg4ovc.apps.googleusercontent.com",
+		"CF_ACCOUNT_ID": "09cb4650f4cdacdcc1d0fd160aa3c114",
+		"CF_ZONE_ID": "98bb290d6da3ef66dfb15089fbefa120",
+		"CF_SITE_TAG": "cd15295bccd647f99cbec327a82a07dc",
+		"PUBLIC_CF_SITE_TAG": "cd15295bccd647f99cbec327a82a07dc"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "authlayer-p4",
+			"database_id": "dbab2267-43c2-45e5-a362-6977548e0f51",
+			"remote": true
+		}
+	],
+	"queues": {
+		"producers": [
+			{ "binding": "DISCOVERY_QUEUE", "queue": "domain-discovery" },
+			{ "binding": "RESCAN_QUEUE",    "queue": "domain-rescan" }
+		],
+		"consumers": [
+			{ "queue": "domain-discovery", "max_batch_size": 10, "max_batch_timeout": 5 },
+			{ "queue": "domain-rescan",    "max_batch_size": 25, "max_batch_timeout": 10 }
+		]
+	}
 }

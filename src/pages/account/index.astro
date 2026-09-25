@@ -1,0 +1,335 @@
+---
+export const prerender = false;
+
+import AccountLayout from '@/layouts/AccountLayout.astro';
+import { getDB, getUserEmail, getUserByEmail, getOrgById, getBrandsByOrg, getAssetsByOrg, countDomainsByRisk, upsertUser } from '@/lib/db/client.js';
+
+const email = getUserEmail(Astro.request);
+if (!email) return Astro.redirect('/');
+
+const db = getDB(Astro.locals as Record<string, unknown>);
+if (!db) return new Response('Database unavailable', { status: 503 });
+
+const user = await upsertUser(db, email);
+
+if (!user.org_id) return Astro.redirect('/account/setup');
+
+const [org, brands, assets, riskCounts] = await Promise.all([
+  getOrgById(db, user.org_id),
+  getBrandsByOrg(db, user.org_id),
+  getAssetsByOrg(db, user.org_id),
+  countDomainsByRisk(db, user.org_id),
+]);
+
+if (!org) return Astro.redirect('/account/setup');
+
+const totalDomains = Object.values(riskCounts).reduce((a, b) => a + b, 0);
+const highRiskCount = riskCounts.highest + riskCounts.high;
+---
+
+<AccountLayout
+  title="Dashboard"
+  userEmail={email}
+  orgName={org.name}
+  activeNav="dashboard"
+>
+  <div class="dashboard">
+
+    <header class="dash-header">
+      <div>
+        <h1 class="dash-title">Dashboard</h1>
+        <p class="dash-sub">Threat monitoring for <strong>{org.name}</strong></p>
+      </div>
+    </header>
+
+    <!-- ── Summary cards ──────────────────────────────────────── -->
+    <div class="summary-grid">
+      <div class={`summary-card ${highRiskCount > 0 ? 'alert' : ''}`}>
+        <div class="sc-label">High-risk domains</div>
+        <div class={`sc-value ${highRiskCount > 0 ? 'danger' : 'ok'}`}>{highRiskCount}</div>
+        <div class="sc-sub">Highest + High</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Total monitored</div>
+        <div class="sc-value">{totalDomains}</div>
+        <div class="sc-sub">across all risk levels</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Brands protected</div>
+        <div class="sc-value">{brands.length}</div>
+        <div class="sc-sub">{brands.map(b => b.name).join(', ') || '—'}</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Known assets</div>
+        <div class="sc-value">{assets.length}</div>
+        <div class="sc-sub">domains in allowlist</div>
+      </div>
+    </div>
+
+    <!-- ── Risk breakdown ─────────────────────────────────────── -->
+    {totalDomains > 0 ? (
+      <div class="section">
+        <div class="section-label">Domain risk breakdown</div>
+        <div class="risk-row">
+          {(['highest', 'high', 'medium', 'low', 'lowest'] as const).map(lvl => (
+            <div class={`risk-tile risk-${lvl}`}>
+              <span class="rt-count">{riskCounts[lvl]}</span>
+              <span class="rt-label">{lvl.charAt(0).toUpperCase() + lvl.slice(1)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : (
+      <div class="empty-state">
+        <div class="empty-icon">◎</div>
+        <div class="empty-title">No domains being monitored yet</div>
+        <div class="empty-body">
+          Continuous monitoring starts once the discovery pipeline is active.
+          In the meantime, use the real-time scan tool to check your domain right now.
+        </div>
+        <a href="/tools/domain-monitoring" class="empty-cta">Run a scan →</a>
+      </div>
+    )}
+
+    <!-- ── Profile overview ───────────────────────────────────── -->
+    <div class="section">
+      <div class="section-label">Profile</div>
+      <div class="profile-grid">
+        <div class="profile-card">
+          <div class="pc-label">Brands</div>
+          <ul class="pc-list">
+            {brands.map(b => (
+              <li class={`pc-item ${b.is_primary ? 'primary' : ''}`}>
+                {b.name}
+                {b.is_primary ? <span class="primary-tag">primary</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div class="profile-card">
+          <div class="pc-label">Known assets</div>
+          <ul class="pc-list">
+            {assets.slice(0, 8).map(a => (
+              <li class="pc-item pc-asset">
+                <span class="asset-type">{a.type}</span>
+                <span class="asset-value">{a.value}</span>
+              </li>
+            ))}
+            {assets.length > 8 && (
+              <li class="pc-item pc-more">+{assets.length - 8} more</li>
+            )}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Coming soon ────────────────────────────────────────── -->
+    <div class="section">
+      <div class="section-label">Roadmap</div>
+      <div class="roadmap-grid">
+        {[
+          { phase: 'P4.2', label: 'Continuous discovery', desc: 'Async pipeline monitoring CT logs, DNS, and registration data 24/7' },
+          { phase: 'P4.3', label: 'Full intel analysis', desc: 'TLS, HTTP, content and brand detection for each monitored domain' },
+          { phase: 'P4.4', label: 'Alerting', desc: 'Email alerts when risk increases or new suspicious domains appear' },
+          { phase: 'P4.5', label: 'Investigation tools', desc: 'Domain detail pages, classification workflow, infrastructure correlation' },
+        ].map(item => (
+          <div class="roadmap-card">
+            <span class="roadmap-phase">{item.phase}</span>
+            <div class="roadmap-label">{item.label}</div>
+            <div class="roadmap-desc">{item.desc}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+  </div>
+</AccountLayout>
+
+<style>
+.dashboard {
+  padding: 2.5rem 2rem 4rem;
+  max-width: 900px;
+}
+@media (max-width: 600px) { .dashboard { padding: 1.5rem 1rem 3rem; } }
+
+.dash-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+.dash-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+.dash-sub { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.3rem; }
+.dash-sub strong { color: var(--text); font-weight: 600; }
+
+/* ── Summary cards ──────────────────────────────────────────── */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 2.5rem;
+}
+
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+}
+.summary-card.alert { border-color: rgba(248,113,113,0.35); }
+
+.sc-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+}
+.sc-value { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.sc-value.danger { color: #f87171; }
+.sc-value.ok { color: var(--green); }
+.sc-sub { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.35rem; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Section ────────────────────────────────────────────────── */
+.section { margin-bottom: 2.5rem; }
+.section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.85rem;
+}
+
+/* ── Risk breakdown ─────────────────────────────────────────── */
+.risk-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+.risk-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1.1rem;
+  min-width: 70px;
+}
+.rt-count { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.rt-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+
+.risk-highest { border-color: rgba(248,113,113,0.3); }
+.risk-highest .rt-count { color: #f87171; }
+.risk-highest .rt-label { color: #f87171; opacity: 0.8; }
+.risk-high .rt-count { color: #fb923c; }
+.risk-high .rt-label { color: #fb923c; opacity: 0.8; }
+.risk-medium .rt-count { color: #fbbf24; }
+.risk-medium .rt-label { color: #fbbf24; opacity: 0.8; }
+.risk-low .rt-count { color: #60a5fa; }
+.risk-low .rt-label { color: #60a5fa; opacity: 0.8; }
+.risk-lowest .rt-count { color: var(--text-muted); }
+.risk-lowest .rt-label { color: var(--text-muted); opacity: 0.8; }
+
+/* ── Empty state ────────────────────────────────────────────── */
+.empty-state {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2rem;
+  text-align: center;
+  max-width: 480px;
+  margin-bottom: 2.5rem;
+}
+.empty-icon { font-size: 1.75rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+.empty-title { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 0.5rem; }
+.empty-body { font-size: 0.82rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 1.25rem; }
+.empty-cta {
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid rgba(56,189,248,0.25);
+  padding: 0.45em 1em;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.empty-cta:hover { background: rgba(56,189,248,0.08); text-decoration: none; }
+
+/* ── Profile ────────────────────────────────────────────────── */
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+.profile-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+}
+.pc-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+.pc-list { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
+.pc-item { font-size: 0.82rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.5rem; }
+.pc-item.primary { color: var(--text); font-weight: 600; }
+.primary-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(56,189,248,0.1);
+  color: var(--accent);
+  border: 1px solid rgba(56,189,248,0.2);
+  padding: 0.15em 0.45em;
+  border-radius: 3px;
+}
+.pc-asset { gap: 0.4rem; }
+.asset-type {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.asset-value { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-dim); }
+.pc-more { color: var(--text-muted); font-size: 0.75rem; }
+
+/* ── Roadmap ────────────────────────────────────────────────── */
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+.roadmap-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  opacity: 0.65;
+}
+.roadmap-phase {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--purple);
+  letter-spacing: 0.04em;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+.roadmap-label { font-size: 0.85rem; font-weight: 700; color: var(--text); margin-bottom: 0.3rem; }
+.roadmap-desc { font-size: 0.75rem; color: var(--text-dim); line-height: 1.5; }
+</style>
