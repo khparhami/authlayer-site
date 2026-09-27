@@ -1,25 +1,7 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
 
-const PAID_CHECK_PREVIEWS = [
-  { name: 'SameSite Cookie Policy',           category: 'cookies' },
-  { name: 'Secure Cookie Prefixes (__Host-)', category: 'cookies' },
-  { name: 'Content-Security-Policy Strength', category: 'headers' },
-  { name: 'Referrer-Policy',                  category: 'headers' },
-  { name: 'Permissions-Policy',               category: 'headers' },
-  { name: 'Cross-Origin Isolation (COOP)',    category: 'headers' },
-  { name: 'OIDC Discovery Endpoint',          category: 'oauth'   },
-  { name: 'PKCE S256 Enforcement',            category: 'oauth'   },
-  { name: 'Deprecated OAuth Grant Types',     category: 'oauth'   },
-  { name: 'Passkey / WebAuthn Support',       category: 'oauth'   },
-  { name: 'Phishing-Resistant Authentication',category: 'oauth'   },
-  { name: 'DKIM Record',                      category: 'email'   },
-  { name: 'DMARC Policy Level',               category: 'email'   },
-  { name: 'SPF Enforcement Level',            category: 'email'   },
-  { name: 'Auth Subdomain Surface',           category: 'exposure'},
-  { name: 'Security.txt Disclosure',          category: 'exposure'},
-  { name: 'Source Map Exposure',              category: 'exposure'},
-];
+
 ---
 
 <BaseLayout
@@ -336,20 +318,6 @@ const PAID_CHECK_PREVIEWS = [
           <!-- Full findings list -->
           <div id="results-list" class="results-list"></div>
 
-          <!-- Paid teaser -->
-          <div id="paid-teaser" class="paid-teaser" hidden>
-            <div class="teaser-header">
-              <span class="lock-icon">⊘</span>
-              <div>
-                <div class="teaser-title">Run a deeper external security assessment</div>
-                <div class="teaser-sub">Cookie policy, CSP strength, OIDC/PKCE, DKIM, DMARC enforcement, source map exposure, subdomain surface, and more — a complete view of your attack surface</div>
-              </div>
-            </div>
-            <ul class="teaser-list" id="teaser-list"></ul>
-            <button id="btn-upgrade" class="btn btn-pro teaser-btn" type="button">
-              Run Deeper Assessment
-            </button>
-          </div>
 
         </div>
 
@@ -364,7 +332,7 @@ const PAID_CHECK_PREVIEWS = [
   </section>
 </BaseLayout>
 
-<script define:vars={{ PAID_CHECK_PREVIEWS }}>
+<script>
   // ─── DOM refs ───────────────────────────────────────────────────────────────
   const domainInput      = document.getElementById('domain-input');
   const authUrlInput     = document.getElementById('auth-url-input');
@@ -373,11 +341,7 @@ const PAID_CHECK_PREVIEWS = [
   const scopeInput       = document.getElementById('scope-input');
   const authCheckbox     = document.getElementById('auth-checkbox');
 
-  const btnRun     = document.getElementById('btn-run');
-  const btnUpgrade = document.getElementById('btn-upgrade');
-  // Free/paid split — kept for future tiered plans
-  // const btnFree = document.getElementById('btn-free');
-  // const btnPaid = document.getElementById('btn-paid');
+  const btnRun = document.getElementById('btn-run');
 
   const authError   = document.getElementById('auth-error');
   const domainError = document.getElementById('domain-error');
@@ -396,8 +360,6 @@ const PAID_CHECK_PREVIEWS = [
   const topFindingsSection = document.getElementById('top-findings-section');
   const topFindingsList  = document.getElementById('top-findings-list');
   const resultsList      = document.getElementById('results-list');
-  const paidTeaser       = document.getElementById('paid-teaser');
-  const teaserList       = document.getElementById('teaser-list');
   const errorText        = document.getElementById('error-text');
 
   // Auth section
@@ -649,7 +611,6 @@ const PAID_CHECK_PREVIEWS = [
       `<span class="chip chip-pass">${passCount} passed</span>`,
       inconclusiveCount ? `<span class="chip chip-inconclusive">${inconclusiveCount} inconclusive</span>` : '',
       notChecked        ? `<span class="chip chip-err">${notChecked} not checked</span>` : '',
-      `<span class="chip chip-paid">Deep Assessment</span>`,
       authenticated && authConnection
         ? `<span class="chip chip-auth">Authenticated · ${escHtml(authConnection.scopes?.join(' ') || 'OAuth')}</span>`
         : '',
@@ -744,20 +705,6 @@ const PAID_CHECK_PREVIEWS = [
       resultsList.appendChild(section);
     }
 
-    // Free/paid split — kept for future tiered plans
-    // if (report === 'free') {
-    //   teaserList.innerHTML = PAID_CHECK_PREVIEWS.map(c =>
-    //     `<li class="teaser-item">
-    //       <span class="lock-pill">🔒</span>
-    //       <span class="teaser-check-name">${escHtml(c.name)}</span>
-    //       <span class="teaser-cat">${escHtml(CATEGORY_LABELS[c.category] ?? c.category)}</span>
-    //     </li>`
-    //   ).join('');
-    //   paidTeaser.hidden = false;
-    // } else {
-    //   paidTeaser.hidden = true;
-    // }
-    paidTeaser.hidden = true;
   }
 
   function buildCard(f, compact) {
@@ -1021,13 +968,9 @@ const PAID_CHECK_PREVIEWS = [
   }
 
   btnRun.addEventListener('click', () => runReport('paid'));
-  // Free/paid split — kept for future tiered plans
-  // btnFree.addEventListener('click', () => runReport('free'));
-  // btnPaid.addEventListener('click', () => runReport('paid'));
-  btnUpgrade?.addEventListener('click',() => runReport('paid'));
 
   domainInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && authCheckbox.checked) runReport('free');
+    if (e.key === 'Enter' && authCheckbox.checked) runReport('paid');
   });
 
   // ─── Auto-load authenticated result from OAuth callback redirect ─────────────
@@ -1438,7 +1381,6 @@ const PAID_CHECK_PREVIEWS = [
   .chip-err          { background: rgba(100,116,139,0.15);  border: 1px solid rgba(100,116,139,0.35);  color: #94a3b8; }
   .chip-inconclusive { background: rgba(148,163,184,0.12);  border: 1px solid rgba(148,163,184,0.30);  color: #94a3b8; }
   .chip-free { background: rgba(56,189,248,0.15);   border: 1px solid rgba(56,189,248,0.30);   color: #7dd3fc; }
-  .chip-paid { background: rgba(129,140,248,0.15);  border: 1px solid rgba(129,140,248,0.30);  color: #a5b4fc; }
   .chip-auth { background: rgba(52,211,153,0.15);   border: 1px solid rgba(52,211,153,0.30);   color: #6ee7b7; }
   .summary-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
@@ -1755,35 +1697,6 @@ const PAID_CHECK_PREVIEWS = [
     transition: background 0.12s, border-color 0.12s;
   }
   .ref-link:hover { background: rgba(129,140,248,0.22); border-color: rgba(129,140,248,0.55); text-decoration: underline; }
-
-  /* ─── Paid teaser ────────────────────────────────────────────────── */
-  .paid-teaser {
-    margin-top: 2rem; background: var(--bg-card);
-    border: 1.5px solid rgba(129,140,248,0.30); border-radius: 12px; overflow: hidden;
-  }
-  .teaser-header {
-    display: flex; align-items: flex-start; gap: 1rem; padding: 1.35rem 1.5rem;
-    background: linear-gradient(90deg, rgba(129,140,248,0.12) 0%, rgba(129,140,248,0.05) 100%);
-    border-bottom: 1px solid rgba(129,140,248,0.15);
-  }
-  .lock-icon { font-size: 1.4rem; color: #818cf8; flex-shrink: 0; margin-top: 0.1rem; }
-  .teaser-title { font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 0.3rem; }
-  .teaser-sub   { font-size: 0.82rem; color: #64748b; line-height: 1.5; }
-  .teaser-list {
-    list-style: none;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-    gap: 0; padding: 0;
-  }
-  .teaser-item {
-    display: flex; align-items: center; gap: 0.6rem;
-    padding: 0.65rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.04);
-    opacity: 0.55; transition: opacity 0.15s;
-  }
-  .teaser-item:hover { opacity: 0.75; }
-  .lock-pill { font-size: 0.7rem; flex-shrink: 0; }
-  .teaser-check-name { font-size: 0.83rem; color: var(--text-dim); flex: 1; }
-  .teaser-cat { font-size: 0.65rem; color: #475569; white-space: nowrap; }
-  .teaser-btn { margin: 1.25rem 1.5rem; }
 
   /* ─── Utilities ──────────────────────────────────────────────────── */
   [hidden] { display: none !important; }
