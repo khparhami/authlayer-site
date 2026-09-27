@@ -399,6 +399,51 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
   line-height: 1.5;
 }
 
+.signal-item {
+  display: block;
+}
+
+/* Brand + random token detection styles */
+.dt-type.brand-random {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #a78bfa;
+}
+
+.conf-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.1em 0.45em;
+  border-radius: 3px;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+.conf-badge.conf-high   { background: rgba(167,139,250,0.12); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); }
+.conf-badge.conf-medium { background: rgba(251,191,36,0.1);   color: #fbbf24; border: 1px solid rgba(251,191,36,0.25); }
+.conf-badge.conf-low    { background: rgba(100,116,139,0.08); color: var(--text-muted); border: 1px solid rgba(100,116,139,0.2); }
+
+.age-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+  background: rgba(248,113,113,0.1);
+  color: #f87171;
+  border: 1px solid rgba(248,113,113,0.25);
+}
+
+.row-brand-random {
+  background: rgba(167,139,250,0.04);
+}
+
 /* ─── CT subdomains ────────────────────────────────────────────────────────── */
 .ct-grid {
   display: grid;
@@ -539,6 +584,7 @@ function formatAttackType(t: string): string {
     phishing_keyword: 'Phishing keyword',
     tld_variant: 'TLD variant',
     ct_discovered: 'CT-discovered',
+    brand_random_token: 'Brand + random token',
   };
   return map[t] ?? t;
 }
@@ -547,12 +593,16 @@ function buildResults(domain: string, data: {
   scanned: number;
   resolving: number;
   ctSubdomains: string[];
+  brandTokens?: string[];
   lookalikeDomains: Array<{
     domain: string;
     riskLevel: string;
     riskScore: number;
     resolves: boolean;
     attackType: string;
+    confidence?: string;
+    domainAge?: { bucket: string; registeredAt?: string; ageDays?: number };
+    evidence?: Array<{ type: string; description: string; value?: string }>;
     reasons: string[];
   }>;
 }) {
@@ -627,21 +677,35 @@ function buildResults(domain: string, data: {
       </div>
     `;
   } else {
-    const rows = lookalikeDomains.map(d => `
-      <tr>
-        <td class="dt-domain">${escapeHtml(d.domain)}</td>
+    const rows = lookalikeDomains.map(d => {
+      const attackLabel = formatAttackType(d.attackType);
+      const isBrandRandom = d.attackType === 'brand_random_token';
+      const confBadge = d.confidence
+        ? `<span class="conf-badge conf-${d.confidence}">${d.confidence}</span>`
+        : '';
+      const ageBadge = d.domainAge && d.domainAge.bucket !== 'unknown' && d.domainAge.bucket !== '>90d'
+        ? `<span class="age-badge">${escapeHtml(d.domainAge.bucket)}</span>`
+        : '';
+      const detectionCell = isBrandRandom
+        ? `<span class="dt-type brand-random">${attackLabel}</span>${confBadge}`
+        : escapeHtml(attackLabel);
+      const signalsHtml = d.reasons.map(r => `<span class="signal-item">${escapeHtml(r)}</span>`).join('');
+      return `
+      <tr class="${isBrandRandom ? 'row-brand-random' : ''}">
+        <td class="dt-domain">${escapeHtml(d.domain)}${ageBadge}</td>
         <td class="dt-risk">
           <span class="risk-badge ${d.riskLevel}">${d.riskLevel.toUpperCase()}</span>
         </td>
-        <td class="attack-type">${formatAttackType(d.attackType)}</td>
+        <td class="attack-type">${detectionCell}</td>
         <td>
           <span class="status-dot ${d.resolves ? 'active' : 'inactive'}">
             ${d.resolves ? 'Active' : 'Inactive'}
           </span>
         </td>
-        <td class="dt-reasons">${d.reasons.map(r => escapeHtml(r)).join('<br>')}</td>
+        <td class="dt-reasons">${signalsHtml}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     tableHtml = `
       <div class="results-section">
@@ -656,7 +720,7 @@ function buildResults(domain: string, data: {
               <tr>
                 <th>Domain</th>
                 <th>Risk</th>
-                <th>Attack type</th>
+                <th>Detection type</th>
                 <th>DNS status</th>
                 <th>Signals</th>
               </tr>

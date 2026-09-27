@@ -1,11 +1,36 @@
-// Domain monitoring: lookalike typosquat detection + CT subdomain discovery
+// Domain monitoring: lookalike typosquat detection + brand+random token detection + CT discovery
+
+// ─── Public interfaces ─────────────────────────────────────────────────────────
+
+export type AttackType =
+  | 'typosquat'
+  | 'homoglyph'
+  | 'phishing_keyword'
+  | 'tld_variant'
+  | 'ct_discovered'
+  | 'brand_random_token';
+
+export interface DomainAge {
+  registeredAt?: string;  // 'YYYY-MM-DD'
+  ageDays?: number;
+  bucket: '<24h' | '<7d' | '<30d' | '<90d' | '>90d' | 'unknown';
+}
+
+export interface Evidence {
+  type: string;
+  description: string;
+  value?: string;
+}
 
 export interface LookalikeDomain {
   domain: string;
   riskLevel: 'highest' | 'high' | 'medium' | 'low' | 'lowest';
   riskScore: number;
   resolves: boolean;
-  attackType: 'typosquat' | 'homoglyph' | 'phishing_keyword' | 'tld_variant' | 'ct_discovered';
+  attackType: AttackType;
+  confidence?: 'high' | 'medium' | 'low';
+  domainAge?: DomainAge;
+  evidence?: Evidence[];
   reasons: string[];
 }
 
@@ -14,22 +39,39 @@ export interface DomainMonitoringResult {
   resolving: number;
   ctSubdomains: string[];
   lookalikeDomains: LookalikeDomain[];
+  brandTokens: string[];
 }
 
-// ─── Variant generation ──────────────────────────────────────────────────────
+// ─── Internal types ─────────────────────────────────────────────────────────────
 
 interface Variant {
   domain: string;
-  attackType: LookalikeDomain['attackType'];
+  attackType: AttackType;
   reasons: string[];
-  phishingPriority: number; // higher = more suspicious even unresolved
+  phishingPriority: number;
 }
+
+interface TokenAnalysis {
+  token: string;
+  isRandomLike: boolean;
+  confidence: number;  // 0–1
+  entropy: number;
+  reasons: string[];
+}
+
+interface BrandMatchResult {
+  brand: string;
+  position: 'prefix' | 'suffix' | 'embedded';
+  remaining: string;
+}
+
+// ─── Constants ──────────────────────────────────────────────────────────────────
 
 const PHISHING_PREFIXES = ['login', 'secure', 'auth', 'account', 'verify', 'update', 'signin', 'support', 'reset', 'confirm'];
 const PHISHING_SUFFIXES = ['login', 'secure', 'auth', 'verify', 'signin', 'support', 'portal', 'online'];
 const ALT_TLDS = ['net', 'org', 'co', 'io', 'app', 'online', 'site', 'info', 'biz'];
+
 const HOMOGLYPH_MAP: [string, string, string][] = [
-  // [original, replacement, description]
   ['rn', 'm',  '"rn" → "m" (visual clone)'],
   ['vv', 'w',  '"vv" → "w" (visual clone)'],
   ['a',  '4',  '"a" → "4"'],
@@ -41,50 +83,284 @@ const HOMOGLYPH_MAP: [string, string, string][] = [
   ['g',  '9',  '"g" → "9"'],
 ];
 
-function generateVariants(targetDomain: string): Variant[] {
-  const parts = targetDomain.split('.');
-  if (parts.length < 2) return [];
-  const tldFull = parts.slice(1).join('.');
-  const sld = parts[0];
+const RISKY_TLDS = new Set([
+  'top', 'xyz', 'click', 'pw', 'tk', 'ml', 'ga', 'cf', 'gq',
+  'work', 'loan', 'online', 'site', 'rest', 'surf', 'beauty',
+  'cheap', 'party', 'racing', 'review', 'win', 'download', 'stream',
+  'men', 'gdn', 'date', 'faith', 'bid', 'trade',
+]);
 
-  const variants: Variant[] = [];
-  const seen = new Set<string>([targetDomain]);
+const PHISHING_KEYWORDS = new Set([
+  'login', 'secure', 'auth', 'account', 'verify', 'update', 'signin',
+  'support', 'reset', 'confirm', 'portal', 'my', 'web', 'app',
+  'bank', 'pay', 'payment', 'transfer', 'service', 'help', 'customer',
+  'official', 'real', 'genuine', 'legit', 'safe',
+]);
 
-  function add(d: string, attackType: Variant['attackType'], reason: string, priority = 0) {
-    if (!seen.has(d) && d.length > 3 && /^[a-z0-9]([a-z0-9\-.]{0,61}[a-z0-9])?$/.test(d)) {
-      seen.add(d);
-      variants.push({ domain: d, attackType, reasons: [reason], phishingPriority: priority });
+const COMMON_WORDS = new Set([
+  'login', 'secure', 'auth', 'bank', 'pay', 'mail', 'shop', 'store',
+  'app', 'web', 'online', 'support', 'help', 'service', 'account',
+  'money', 'cash', 'card', 'link', 'page', 'site', 'home', 'info',
+  'about', 'contact', 'news', 'blog', 'data', 'code', 'work', 'live',
+  'play', 'game', 'tech', 'cloud', 'hub', 'lab', 'labs',
+]);
+
+const RDAP_SERVERS: Record<string, string> = {
+  com:    'https://rdap.verisign.com/com/v1/domain/',
+  net:    'https://rdap.verisign.com/net/v1/domain/',
+  org:    'https://rdap.publicinterestregistry.org/rdap/domain/',
+  io:     'https://rdap.nic.io/domain/',
+  app:    'https://rdap.nic.google/domain/',
+  dev:    'https://rdap.nic.google/domain/',
+  xyz:    'https://rdap.nic.xyz/domain/',
+  top:    'https://rdap.nic.top/domain/',
+  online: 'https://rdap.centralnic.com/domain/',
+  site:   'https://rdap.centralnic.com/domain/',
+  biz:    'https://rdap.centralnic.com/domain/',
+  info:   'https://rdap.afilias.info/rdap/domain/',
+  co:     'https://rdap.nic.co/domain/',
+};
+
+// ─── Brand extraction ────────────────────────────────────────────────────────────
+
+export function extractBrandTokens(targetDomain: string): string[] {
+  const sld = targetDomain.split('.')[0].toLowerCase().replace(/[^a-z0-9-]/g, '');
+  const tokens = new Set<string>([sld]);
+
+  if (sld.includes('-')) {
+    tokens.add(sld.replace(/-/g, ''));
+    for (const part of sld.split('-')) {
+      if (part.length >= 3) tokens.add(part);
     }
   }
 
-  // 1. Phishing keyword prefix / suffix (highest priority — active attack pattern)
-  for (const p of PHISHING_PREFIXES) {
-    add(`${p}-${sld}.${tldFull}`, 'phishing_keyword', `Phishing prefix "${p}-"`, 30);
-    add(`${p}${sld}.${tldFull}`, 'phishing_keyword', `Phishing prefix "${p}"`, 25);
-  }
-  for (const s of PHISHING_SUFFIXES) {
-    add(`${sld}-${s}.${tldFull}`, 'phishing_keyword', `Phishing suffix "-${s}"`, 28);
+  return [...tokens].filter(t => t.length >= 3);
+}
+
+// ─── Token analysis ───────────────────────────────────────────────────────────────
+
+const VOWELS = new Set(['a', 'e', 'i', 'o', 'u']);
+
+export function analyzeToken(token: string): TokenAnalysis {
+  const lower = token.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (lower.length === 0) {
+    return { token, isRandomLike: false, confidence: 0, entropy: 0, reasons: [] };
   }
 
-  // 2. Homoglyphs / look-alike character substitutions
+  // Shannon entropy
+  const freq = new Map<string, number>();
+  for (const c of lower) freq.set(c, (freq.get(c) ?? 0) + 1);
+  let entropy = 0;
+  for (const count of freq.values()) {
+    const p = count / lower.length;
+    entropy -= p * Math.log2(p);
+  }
+
+  const vowelCount = [...lower].filter(c => VOWELS.has(c)).length;
+  const vowelRatio = vowelCount / lower.length;
+  const hasConsonantCluster = /[^aeiou0-9]{3,}/.test(lower);
+  const numericRatio = (lower.match(/\d/g) ?? []).length / lower.length;
+  const uniqueRatio = freq.size / lower.length;
+  const isCommonWord = COMMON_WORDS.has(lower) || PHISHING_KEYWORDS.has(lower);
+
+  const reasons: string[] = [];
+  let score = 0;
+
+  if (isCommonWord) score -= 5;
+
+  if (lower.length >= 5 && entropy >= 2.5) {
+    score += 2;
+    reasons.push(`High entropy (${entropy.toFixed(2)} bits)`);
+  } else if (lower.length >= 4 && entropy >= 2.0) {
+    score += 1;
+  }
+
+  if (hasConsonantCluster) {
+    score += 2;
+    reasons.push('Unusual consonant cluster');
+  }
+
+  if (vowelRatio < 0.2 && lower.length >= 4) {
+    score += 2;
+    reasons.push(`Very low vowel ratio (${(vowelRatio * 100).toFixed(0)}%)`);
+  } else if (vowelRatio < 0.1 && lower.length >= 3) {
+    score += 1;
+    reasons.push('Minimal vowels');
+  }
+
+  if (numericRatio >= 0.4 && numericRatio < 1.0) {
+    score += 1;
+    reasons.push('High numeric density');
+  }
+
+  if (uniqueRatio >= 0.85 && lower.length >= 5) {
+    score += 1;
+    reasons.push('High character uniqueness');
+  }
+
+  return {
+    token: lower,
+    isRandomLike: score >= 2,
+    confidence: Math.max(0, Math.min(1, score / 5)),
+    entropy,
+    reasons,
+  };
+}
+
+// ─── Brand detection in candidate domain ─────────────────────────────────────────
+
+export function detectBrandInDomain(
+  candidateDomain: string,
+  brandTokens: string[],
+): BrandMatchResult | null {
+  const sld = candidateDomain.split('.')[0].toLowerCase();
+
+  for (const brand of brandTokens) {
+    if (brand.length < 3) continue;
+    if (sld === brand) return null; // exact match = target domain itself
+
+    if (sld.startsWith(brand)) {
+      const remaining = sld.slice(brand.length).replace(/^[-_]/, '');
+      if (remaining.length === 0) return null; // TLD variant, handled elsewhere
+      return { brand, position: 'prefix', remaining };
+    }
+
+    if (sld.endsWith(brand)) {
+      const remaining = sld.slice(0, sld.length - brand.length).replace(/[-_]$/, '');
+      if (remaining.length === 0) return null;
+      return { brand, position: 'suffix', remaining };
+    }
+
+    // Embedded: only for brands 4+ chars to limit noise
+    if (brand.length >= 4) {
+      const idx = sld.indexOf(brand);
+      if (idx > 0 && idx + brand.length < sld.length) {
+        return { brand, position: 'embedded', remaining: sld };
+      }
+    }
+  }
+  return null;
+}
+
+// ─── CT brand domain discovery ───────────────────────────────────────────────────
+
+async function fetchCtBrandDomains(brandTokens: string[], targetDomain: string): Promise<string[]> {
+  const primaryBrand = brandTokens[0];
+  if (!primaryBrand || primaryBrand.length < 3) return [];
+
+  try {
+    const res = await fetch(
+      `https://crt.sh/?q=%25${encodeURIComponent(primaryBrand)}%25&output=json`,
+      { signal: AbortSignal.timeout(12000) },
+    );
+    if (!res.ok) return [];
+
+    const certs = (await res.json() as Array<{ name_value: string }>).slice(0, 400);
+    const results = new Set<string>();
+
+    for (const cert of certs) {
+      if (!cert.name_value) continue;
+      for (const entry of cert.name_value.split('\n')) {
+        const clean = entry.trim().replace(/^\*\./, '').toLowerCase();
+        if (!clean) continue;
+        if (!/^[a-z0-9][a-z0-9\-.]{0,60}[a-z0-9]\.[a-z]{2,}$/.test(clean)) continue;
+        if (clean === targetDomain || clean.endsWith(`.${targetDomain}`)) continue;
+        results.add(clean);
+      }
+    }
+
+    return [...results];
+  } catch {
+    return [];
+  }
+}
+
+// ─── RDAP domain age lookup ──────────────────────────────────────────────────────
+
+async function fetchRdap(domain: string): Promise<DomainAge> {
+  const tld = domain.split('.').pop()?.toLowerCase() ?? '';
+  const server = RDAP_SERVERS[tld];
+  if (!server) return { bucket: 'unknown' };
+
+  try {
+    const res = await fetch(`${server}${encodeURIComponent(domain)}`, {
+      headers: { Accept: 'application/rdap+json' },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return { bucket: 'unknown' };
+
+    const data = await res.json() as {
+      events?: Array<{ eventAction: string; eventDate: string }>;
+    };
+
+    const regEvent = data.events?.find(e => e.eventAction === 'registration');
+    if (!regEvent?.eventDate) return { bucket: 'unknown' };
+
+    const registeredAt = new Date(regEvent.eventDate);
+    if (isNaN(registeredAt.getTime())) return { bucket: 'unknown' };
+
+    const ageDays = Math.floor((Date.now() - registeredAt.getTime()) / 86_400_000);
+
+    return {
+      registeredAt: registeredAt.toISOString().split('T')[0],
+      ageDays,
+      bucket:
+        ageDays < 1  ? '<24h' :
+        ageDays < 7  ? '<7d'  :
+        ageDays < 30 ? '<30d' :
+        ageDays < 90 ? '<90d' : '>90d',
+    };
+  } catch {
+    return { bucket: 'unknown' };
+  }
+}
+
+// ─── Variant generation ──────────────────────────────────────────────────────────
+
+function generateVariants(targetDomain: string): Variant[] {
+  const parts = targetDomain.split('.');
+  if (parts.length < 2) return [];
+
+  const tldFull = parts.slice(1).join('.');
+  const sld = parts[0].toLowerCase();
+  const variants: Variant[] = [];
+  const seen = new Set<string>();
+
+  function add(domain: string, attackType: AttackType, reason: string, priority: number) {
+    if (!seen.has(domain) && domain.length >= 3 && /^[a-z0-9]([a-z0-9\-.]{0,61}[a-z0-9])?$/.test(domain)) {
+      seen.add(domain);
+      variants.push({ domain, attackType, reasons: [reason], phishingPriority: priority });
+    }
+  }
+
+  // 1. Phishing prefixes / suffixes
+  for (const p of PHISHING_PREFIXES) {
+    add(`${p}-${sld}.${tldFull}`, 'phishing_keyword', `Prefix "${p}" — brand impersonation keyword`, 30);
+    add(`${p}${sld}.${tldFull}`,  'phishing_keyword', `Prefix "${p}" — brand impersonation keyword`, 25);
+  }
+  for (const s of PHISHING_SUFFIXES) {
+    add(`${sld}-${s}.${tldFull}`, 'phishing_keyword', `Suffix "${s}" — brand impersonation keyword`, 28);
+    add(`${sld}${s}.${tldFull}`,  'phishing_keyword', `Suffix "${s}" — brand impersonation keyword`, 22);
+  }
+
+  // 2. Homoglyphs
   for (const [orig, replacement, description] of HOMOGLYPH_MAP) {
     if (sld.includes(orig)) {
       add(`${sld.replace(orig, replacement)}.${tldFull}`, 'homoglyph', description, 20);
-      // Also try replacing all occurrences
       add(`${sld.replaceAll(orig, replacement)}.${tldFull}`, 'homoglyph', `All ${description}`, 18);
     }
   }
 
-  // 3. Character deletion (one char missing)
+  // 3. Character deletion
   for (let i = 0; i < sld.length; i++) {
     add(`${sld.slice(0, i)}${sld.slice(i + 1)}.${tldFull}`, 'typosquat', `Missing "${sld[i]}" at position ${i + 1}`, 15);
   }
 
-  // 4. Adjacent character transposition
+  // 4. Adjacent transposition
   for (let i = 0; i < sld.length - 1; i++) {
     const c = sld.split('');
     [c[i], c[i + 1]] = [c[i + 1], c[i]];
-    add(`${c.join('')}.${tldFull}`, 'typosquat', `Swapped "${sld[i]}${sld[i+1]}" → "${sld[i+1]}${sld[i]}"`, 12);
+    add(`${c.join('')}.${tldFull}`, 'typosquat', `Swapped "${sld[i]}${sld[i + 1]}" → "${sld[i + 1]}${sld[i]}"`, 12);
   }
 
   // 5. Character doubling
@@ -96,52 +372,47 @@ function generateVariants(targetDomain: string): Variant[] {
   const primaryTld = parts.slice(-1)[0];
   for (const altTld of ALT_TLDS) {
     if (altTld !== primaryTld) {
-      add(`${sld}.${altTld}`, 'tld_variant', `Alternative TLD .${altTld}`, 8);
+      add(`${sld}.${altTld}`, 'tld_variant', `TLD variant (.${altTld})`, 8);
     }
   }
 
-  // Sort: phishing keywords first, then by priority desc, limit to 60
   return variants
     .sort((a, b) => b.phishingPriority - a.phishingPriority)
     .slice(0, 60);
 }
 
-// ─── DNS resolution via Cloudflare DoH ──────────────────────────────────────
+// ─── DNS resolution ──────────────────────────────────────────────────────────────
 
 async function resolveDomain(domain: string): Promise<boolean> {
   try {
     const res = await fetch(
       `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`,
-      {
-        headers: { Accept: 'application/dns-json' },
-        signal: AbortSignal.timeout(4000),
-      }
+      { headers: { Accept: 'application/dns-json' }, signal: AbortSignal.timeout(4000) },
     );
     if (!res.ok) return false;
-    const data = (await res.json()) as { Status: number; Answer?: unknown[] };
-    return data.Status === 0 && Array.isArray(data.Answer) && data.Answer.length > 0;
+    const data = await res.json() as { Answer?: unknown[] };
+    return Array.isArray(data.Answer) && data.Answer.length > 0;
   } catch {
     return false;
   }
 }
 
-// ─── Certificate Transparency via crt.sh ────────────────────────────────────
+// ─── CT subdomain lookup ──────────────────────────────────────────────────────────
 
-async function queryCtLogs(domain: string): Promise<string[]> {
+async function fetchCtSubdomains(targetDomain: string): Promise<string[]> {
   try {
     const res = await fetch(
-      `https://crt.sh/?q=%.${encodeURIComponent(domain)}&output=json`,
-      { signal: AbortSignal.timeout(10000) }
+      `https://crt.sh/?q=%.${encodeURIComponent(targetDomain)}&output=json`,
+      { signal: AbortSignal.timeout(10000) },
     );
     if (!res.ok) return [];
     const certs = (await res.json()) as Array<{ name_value: string; logged_at?: string }>;
-    const names = new Map<string, string>(); // name → logged_at
+    const names = new Map<string, string>();
     for (const cert of certs) {
       if (!cert.name_value) continue;
       for (const entry of cert.name_value.split('\n')) {
         const clean = entry.trim().replace(/^\*\./, '').toLowerCase();
-        if (clean && clean !== domain && clean.endsWith(`.${domain}`)) {
-          // Keep most recent cert date per subdomain
+        if (clean && clean !== targetDomain && clean.endsWith(`.${targetDomain}`)) {
           const existing = names.get(clean);
           if (!existing || (cert.logged_at && cert.logged_at > existing)) {
             names.set(clean, cert.logged_at ?? '');
@@ -149,7 +420,6 @@ async function queryCtLogs(domain: string): Promise<string[]> {
         }
       }
     }
-    // Return sorted by cert date descending (most recently seen first)
     return [...names.entries()]
       .sort((a, b) => b[1].localeCompare(a[1]))
       .map(([n]) => n)
@@ -159,25 +429,25 @@ async function queryCtLogs(domain: string): Promise<string[]> {
   }
 }
 
-// ─── Bounded concurrency DNS checker ────────────────────────────────────────
+// ─── Bounded concurrency DNS checker ─────────────────────────────────────────────
 
-async function boundedDnsCheck(variants: Variant[], concurrency: number): Promise<boolean[]> {
-  const results: boolean[] = new Array(variants.length).fill(false);
+async function boundedDnsCheck(domains: string[], concurrency: number): Promise<boolean[]> {
+  const results: boolean[] = new Array(domains.length).fill(false);
   let cursor = 0;
 
   async function worker() {
-    while (cursor < variants.length) {
+    while (cursor < domains.length) {
       const i = cursor++;
-      results[i] = await resolveDomain(variants[i].domain);
+      results[i] = await resolveDomain(domains[i]);
     }
   }
 
-  const pool = Array.from({ length: Math.min(concurrency, variants.length) }, worker);
+  const pool = Array.from({ length: Math.min(concurrency, domains.length) }, worker);
   await Promise.all(pool);
   return results;
 }
 
-// ─── Risk scoring ────────────────────────────────────────────────────────────
+// ─── Risk scoring: traditional variants ──────────────────────────────────────────
 
 function scoreVariant(v: Variant, resolves: boolean): { level: LookalikeDomain['riskLevel']; score: number } {
   let score = 0;
@@ -193,21 +463,115 @@ function scoreVariant(v: Variant, resolves: boolean): { level: LookalikeDomain['
   return { level, score };
 }
 
-// ─── Main export ─────────────────────────────────────────────────────────────
+// ─── Risk scoring: brand + random token ──────────────────────────────────────────
 
-export async function runDomainMonitoring(
+function scoreBrandRandomToken(
   domain: string,
-  _knownAssets?: string[],
-): Promise<DomainMonitoringResult> {
-  const variants = generateVariants(domain);
+  brandMatch: BrandMatchResult,
+  tokenAnalysis: TokenAnalysis,
+  domainAge: DomainAge,
+  resolves: boolean,
+): {
+  level: LookalikeDomain['riskLevel'];
+  score: number;
+  confidence: 'high' | 'medium' | 'low';
+  reasons: string[];
+  evidence: Evidence[];
+} {
+  let score = 0;
+  const reasons: string[] = [];
+  const evidence: Evidence[] = [];
 
-  // Run DNS checks and CT log query in parallel, with a 15s overall cap
-  const [resolutions, ctSubdomains] = await Promise.all([
-    boundedDnsCheck(variants, 8),
-    queryCtLogs(domain).catch(() => [] as string[]),
+  // Exact brand match (always present)
+  score += 35;
+  reasons.push(`Exact brand match: ${brandMatch.brand.toUpperCase()}`);
+  evidence.push({
+    type: 'brand_match',
+    description: `Brand token "${brandMatch.brand.toUpperCase()}" found at ${brandMatch.position} of domain`,
+    value: brandMatch.brand,
+  });
+
+  // Token randomness or phishing keyword
+  if (tokenAnalysis.isRandomLike) {
+    const tokenScore = Math.round(tokenAnalysis.confidence * 25);
+    score += tokenScore;
+    const conf = tokenAnalysis.confidence >= 0.7 ? 'high' : 'medium';
+    reasons.push(`Random-looking token "${tokenAnalysis.token}" (${conf} confidence)`);
+    evidence.push({
+      type: 'random_token',
+      description: `Token "${tokenAnalysis.token}" appears algorithmically generated`,
+      value: tokenAnalysis.token,
+    });
+  } else if (PHISHING_KEYWORDS.has(tokenAnalysis.token)) {
+    score += 15;
+    reasons.push(`Phishing keyword "${tokenAnalysis.token}" combined with brand`);
+    evidence.push({
+      type: 'phishing_keyword',
+      description: `Token "${tokenAnalysis.token}" is a known phishing keyword`,
+      value: tokenAnalysis.token,
+    });
+  }
+
+  // Domain age signals
+  switch (domainAge.bucket) {
+    case '<24h': score += 30; reasons.push('Domain registered < 24 hours ago'); break;
+    case '<7d':  score += 20; reasons.push('Domain registered < 7 days ago'); break;
+    case '<30d': score += 10; reasons.push('Domain registered < 30 days ago'); break;
+  }
+  evidence.push({
+    type: 'domain_age',
+    description: domainAge.bucket === 'unknown'
+      ? 'Domain registration date unavailable'
+      : `Domain age: ${domainAge.bucket}${domainAge.registeredAt ? ` (registered ${domainAge.registeredAt})` : ''}`,
+    value: domainAge.bucket,
+  });
+
+  // DNS resolution
+  if (resolves) {
+    score += 15;
+    reasons.push('Domain currently resolves in DNS');
+  }
+
+  // TLD risk
+  const tld = domain.split('.').pop()?.toLowerCase() ?? '';
+  if (RISKY_TLDS.has(tld)) {
+    score += 10;
+    reasons.push(`.${tld} TLD commonly used in phishing campaigns`);
+    evidence.push({
+      type: 'tld_risk',
+      description: `.${tld} TLD — elevated risk profile`,
+      value: tld,
+    });
+  }
+
+  const level: LookalikeDomain['riskLevel'] =
+    score >= 90 ? 'highest' :
+    score >= 70 ? 'high' :
+    score >= 45 ? 'medium' :
+    score >= 20 ? 'low' : 'lowest';
+
+  const confidence: 'high' | 'medium' | 'low' =
+    score >= 70 ? 'high' :
+    score >= 40 ? 'medium' : 'low';
+
+  return { level, score, confidence, reasons, evidence };
+}
+
+// ─── Main export ─────────────────────────────────────────────────────────────────
+
+export async function runDomainMonitoring(targetDomain: string): Promise<DomainMonitoringResult> {
+  const brandTokens = extractBrandTokens(targetDomain);
+  const variants = generateVariants(targetDomain);
+
+  // Phase 1: Run CT subdomain search, CT brand search, and DNS checks in parallel
+  const [resolutions, ctSubdomains, ctBrandRaw] = await Promise.all([
+    boundedDnsCheck(variants.map(v => v.domain), 8),
+    fetchCtSubdomains(targetDomain),
+    fetchCtBrandDomains(brandTokens, targetDomain),
   ]);
 
-  const lookalikeDomains: LookalikeDomain[] = variants
+  // Phase 2: Score traditional lookalikes
+  const traditionalLookalikes: LookalikeDomain[] = variants
     .map((v, i) => {
       const resolves = resolutions[i];
       const { level, score } = scoreVariant(v, resolves);
@@ -220,15 +584,78 @@ export async function runDomainMonitoring(
         reasons: v.reasons,
       };
     })
-    // Show: anything that resolves, or phishing-keyword variants (unresolved = potential threat)
     .filter(d => d.resolves || d.attackType === 'phishing_keyword')
     .sort((a, b) => b.riskScore - a.riskScore)
     .slice(0, 40);
 
+  // Phase 3: Brand detection on CT candidates
+  const brandCandidates = ctBrandRaw
+    .map(domain => ({ domain, match: detectBrandInDomain(domain, brandTokens) }))
+    .filter((c): c is { domain: string; match: BrandMatchResult } => c.match !== null)
+    .slice(0, 50);
+
+  // Phase 4: DNS check brand candidates
+  const brandResolutions = await boundedDnsCheck(
+    brandCandidates.map(c => c.domain),
+    5,
+  );
+
+  // Phase 5: RDAP for top candidates (resolving first, then unresolved, max 20)
+  const rdapTargets = brandCandidates
+    .map((c, i) => ({ ...c, resolves: brandResolutions[i] }))
+    .sort((a, b) => (b.resolves ? 1 : 0) - (a.resolves ? 1 : 0))
+    .slice(0, 20);
+
+  const rdapResults = await Promise.all(rdapTargets.map(c => fetchRdap(c.domain)));
+
+  const rdapMap = new Map<string, DomainAge>();
+  for (let i = 0; i < rdapTargets.length; i++) {
+    rdapMap.set(rdapTargets[i].domain, rdapResults[i]);
+  }
+
+  // Phase 6: Score brand candidates
+  const brandLookalikes: LookalikeDomain[] = [];
+  for (let i = 0; i < brandCandidates.length; i++) {
+    const { domain, match } = brandCandidates[i];
+    const resolves = brandResolutions[i];
+    const tokenAnalysis = analyzeToken(match.remaining);
+    const domainAge = rdapMap.get(domain) ?? { bucket: 'unknown' as const };
+
+    const { level, score, confidence, reasons, evidence } = scoreBrandRandomToken(
+      domain, match, tokenAnalysis, domainAge, resolves,
+    );
+
+    if (score >= 40) {
+      brandLookalikes.push({
+        domain,
+        riskLevel: level,
+        riskScore: score,
+        resolves,
+        attackType: 'brand_random_token',
+        confidence,
+        domainAge,
+        evidence,
+        reasons,
+      });
+    }
+  }
+
+  // Deduplicate and merge
+  const traditionalSet = new Set(traditionalLookalikes.map(d => d.domain));
+  const uniqueBrandLookalikes = brandLookalikes
+    .filter(d => !traditionalSet.has(d.domain))
+    .sort((a, b) => b.riskScore - a.riskScore)
+    .slice(0, 30);
+
+  const allLookalikes = [...traditionalLookalikes, ...uniqueBrandLookalikes]
+    .sort((a, b) => b.riskScore - a.riskScore)
+    .slice(0, 60);
+
   return {
-    scanned: variants.length,
-    resolving: resolutions.filter(Boolean).length,
+    scanned: variants.length + brandCandidates.length,
+    resolving: [...resolutions, ...brandResolutions].filter(Boolean).length,
     ctSubdomains,
-    lookalikeDomains,
+    lookalikeDomains: allLookalikes,
+    brandTokens,
   };
 }
