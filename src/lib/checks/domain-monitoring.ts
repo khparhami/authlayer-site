@@ -625,7 +625,7 @@ export async function runDomainMonitoring(targetDomain: string): Promise<DomainM
   ]);
 
   // Phase 2: Score traditional lookalikes
-  const traditionalLookalikes: LookalikeDomain[] = variants
+  const traditionalLookalikesRaw: LookalikeDomain[] = variants
     .map((v, i) => {
       const resolves = resolutions[i];
       const { level, score } = scoreVariant(v, resolves);
@@ -641,6 +641,26 @@ export async function runDomainMonitoring(targetDomain: string): Promise<DomainM
     .filter(d => d.resolves || d.attackType === 'phishing_keyword')
     .sort((a, b) => b.riskScore - a.riskScore)
     .slice(0, 40);
+
+  // Phase 2.5: RDAP for resolving traditional variants — exclude established (pre-existing) domains.
+  // A domain registered > 2 years ago is almost certainly a legitimate pre-existing entity, not a
+  // new phishing campaign targeting this brand (e.g. fox.com for ofx.com, fastly.net for nasty.net).
+  const ESTABLISHED_DAYS = 730;
+  const resolvingTraditional = traditionalLookalikesRaw.filter(d => d.resolves).slice(0, 15);
+  const tradRdapResults = await Promise.all(resolvingTraditional.map(d => fetchRdap(d.domain)));
+  const tradAgeMap = new Map<string, DomainAge>();
+  for (let i = 0; i < resolvingTraditional.length; i++) {
+    tradAgeMap.set(resolvingTraditional[i].domain, tradRdapResults[i]);
+  }
+
+  const traditionalLookalikes: LookalikeDomain[] = traditionalLookalikesRaw
+    .map(d => ({ ...d, domainAge: tradAgeMap.get(d.domain) }))
+    .filter(d => {
+      if (!d.resolves) return true;
+      const age = d.domainAge;
+      if (!age || age.bucket === 'unknown' || age.ageDays === undefined) return true;
+      return age.ageDays <= ESTABLISHED_DAYS;
+    });
 
   // Phase 3: Brand detection on CT candidates
   const brandCandidates = ctBrandRaw
