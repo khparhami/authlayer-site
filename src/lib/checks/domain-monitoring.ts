@@ -503,10 +503,29 @@ async function boundedDnsCheck(domains: string[], concurrency: number): Promise<
 
 // ─── Risk scoring: traditional variants ──────────────────────────────────────────
 
-function scoreVariant(v: Variant, resolves: boolean): { level: LookalikeDomain['riskLevel']; score: number } {
+function scoreVariant(
+  v: Variant,
+  resolves: boolean,
+  domainAge?: DomainAge,
+): { level: LookalikeDomain['riskLevel']; score: number } {
   let score = 0;
-  if (resolves) score += 50;
   score += v.phishingPriority;
+
+  if (resolves) {
+    // Age-weighted DNS score. Resolving alone is meaningless — fox.com, google.com, and every
+    // other pre-existing legitimate domain resolve. Only NEW resolving domains are suspicious.
+    const ageDays = domainAge?.ageDays;
+    if      (domainAge?.bucket === '<24h')                                  score += 60;
+    else if (domainAge?.bucket === '<7d')                                   score += 55;
+    else if (domainAge?.bucket === '<30d')                                  score += 45;
+    else if (domainAge?.bucket === '<90d')                                  score += 35;
+    else if (domainAge?.bucket === '>90d' && ageDays !== undefined && ageDays <= 730) score += 20;
+    else if (!domainAge || domainAge.bucket === 'unknown')                  score += 15; // unknown → weak signal
+    // else: established (>730d) → +0 — resolving alone is not a threat signal for old domains
+  }
+
+  const tld = v.domain.split('.').pop()?.toLowerCase() ?? '';
+  if (RISKY_TLDS.has(tld)) score += 10;
 
   const level: LookalikeDomain['riskLevel'] =
     score >= 75 ? 'highest' :
@@ -624,57 +643,42 @@ export async function runDomainMonitoring(targetDomain: string): Promise<DomainM
     fetchCtBrandDomains(brandTokens, targetDomain),
   ]);
 
-  // Phase 2: Score traditional lookalikes
-  const traditionalLookalikesRaw: LookalikeDomain[] = variants
+  // Phase 2: RDAP for resolving traditional variants — fetched before scoring so age is
+  // available to scoreVariant. Capped at 15 to keep latency bounded (parallel, 4s timeout each).
+  const resolvingVariants = variants.filter((_, i) => resolutions[i]).slice(0, 15);
+  const tradRdapResults = await Promise.all(resolvingVariants.map(v => fetchRdap(v.domain)));
+  const tradAgeMap = new Map<string, DomainAge>();
+  for (let i = 0; i < resolvingVariants.length; i++) {
+    tradAgeMap.set(resolvingVariants[i].domain, tradRdapResults[i]);
+  }
+
+  // Phase 3: Score traditional lookalikes with full age data — single pass.
+  // Only show medium+ (score ≥ 35) to avoid noise; phishing-keyword variants shown at low+ (≥ 15)
+  // since they may be parked and could activate at any time.
+  const traditionalLookalikes: LookalikeDomain[] = variants
     .map((v, i) => {
       const resolves = resolutions[i];
-      const { level, score } = scoreVariant(v, resolves);
-      return {
-        domain: v.domain,
-        riskLevel: level,
-        riskScore: score,
-        resolves,
-        attackType: v.attackType,
-        reasons: v.reasons,
-      };
+      const domainAge = tradAgeMap.get(v.domain);
+      const { level, score } = scoreVariant(v, resolves, domainAge);
+      return { domain: v.domain, riskLevel: level, riskScore: score, resolves, attackType: v.attackType, reasons: v.reasons, domainAge };
     })
-    .filter(d => d.resolves || d.attackType === 'phishing_keyword')
+    .filter(d => d.riskScore >= 35 || (d.attackType === 'phishing_keyword' && d.riskScore >= 15))
     .sort((a, b) => b.riskScore - a.riskScore)
     .slice(0, 40);
 
-  // Phase 2.5: RDAP for resolving traditional variants — exclude established (pre-existing) domains.
-  // A domain registered > 2 years ago is almost certainly a legitimate pre-existing entity, not a
-  // new phishing campaign targeting this brand (e.g. fox.com for ofx.com, fastly.net for nasty.net).
-  const ESTABLISHED_DAYS = 730;
-  const resolvingTraditional = traditionalLookalikesRaw.filter(d => d.resolves).slice(0, 15);
-  const tradRdapResults = await Promise.all(resolvingTraditional.map(d => fetchRdap(d.domain)));
-  const tradAgeMap = new Map<string, DomainAge>();
-  for (let i = 0; i < resolvingTraditional.length; i++) {
-    tradAgeMap.set(resolvingTraditional[i].domain, tradRdapResults[i]);
-  }
-
-  const traditionalLookalikes: LookalikeDomain[] = traditionalLookalikesRaw
-    .map(d => ({ ...d, domainAge: tradAgeMap.get(d.domain) }))
-    .filter(d => {
-      if (!d.resolves) return true;
-      const age = d.domainAge;
-      if (!age || age.bucket === 'unknown' || age.ageDays === undefined) return true;
-      return age.ageDays <= ESTABLISHED_DAYS;
-    });
-
-  // Phase 3: Brand detection on CT candidates
+  // Phase 4: Brand detection on CT candidates
   const brandCandidates = ctBrandRaw
     .map(domain => ({ domain, match: detectBrandInDomain(domain, brandTokens) }))
     .filter((c): c is { domain: string; match: BrandMatchResult } => c.match !== null)
     .slice(0, 50);
 
-  // Phase 4: DNS check brand candidates
+  // Phase 5: DNS check brand candidates
   const brandResolutions = await boundedDnsCheck(
     brandCandidates.map(c => c.domain),
     5,
   );
 
-  // Phase 5: RDAP for top candidates (resolving first, then unresolved, max 20)
+  // Phase 6: RDAP for top candidates (resolving first, then unresolved, max 20)
   const rdapTargets = brandCandidates
     .map((c, i) => ({ ...c, resolves: brandResolutions[i] }))
     .sort((a, b) => (b.resolves ? 1 : 0) - (a.resolves ? 1 : 0))
@@ -687,7 +691,7 @@ export async function runDomainMonitoring(targetDomain: string): Promise<DomainM
     rdapMap.set(rdapTargets[i].domain, rdapResults[i]);
   }
 
-  // Phase 6: Score brand candidates
+  // Phase 7: Score brand candidates
   const brandLookalikes: LookalikeDomain[] = [];
   for (let i = 0; i < brandCandidates.length; i++) {
     const { domain, match } = brandCandidates[i];
