@@ -88,6 +88,7 @@ const RISKY_TLDS = new Set([
   'work', 'loan', 'online', 'site', 'rest', 'surf', 'beauty',
   'cheap', 'party', 'racing', 'review', 'win', 'download', 'stream',
   'men', 'gdn', 'date', 'faith', 'bid', 'trade',
+  'cc', 'cn', 'shop', 'vip', 'link', 'live', 'icu', 'fun',
 ]);
 
 const PHISHING_KEYWORDS = new Set([
@@ -108,6 +109,8 @@ const COMMON_WORDS = new Set([
 const RDAP_SERVERS: Record<string, string> = {
   com:    'https://rdap.verisign.com/com/v1/domain/',
   net:    'https://rdap.verisign.com/net/v1/domain/',
+  cc:     'https://rdap.verisign.com/cc/v1/domain/',
+  tv:     'https://rdap.verisign.com/tv/v1/domain/',
   org:    'https://rdap.publicinterestregistry.org/rdap/domain/',
   io:     'https://rdap.nic.io/domain/',
   app:    'https://rdap.nic.google/domain/',
@@ -116,6 +119,7 @@ const RDAP_SERVERS: Record<string, string> = {
   top:    'https://rdap.nic.top/domain/',
   online: 'https://rdap.centralnic.com/domain/',
   site:   'https://rdap.centralnic.com/domain/',
+  shop:   'https://rdap.centralnic.com/domain/',
   biz:    'https://rdap.centralnic.com/domain/',
   info:   'https://rdap.afilias.info/rdap/domain/',
   co:     'https://rdap.nic.co/domain/',
@@ -180,12 +184,17 @@ export function analyzeToken(token: string): TokenAnalysis {
     reasons.push('Unusual consonant cluster');
   }
 
-  if (vowelRatio < 0.2 && lower.length >= 4) {
+  if (vowelRatio === 0 && lower.length >= 3) {
+    // No vowels at all — very strong randomness signal (e.g. "9fg", "qshdp", "zop5s")
+    score += 3;
+    reasons.push('No vowels in token');
+  } else if (vowelRatio < 0.2 && lower.length >= 4) {
     score += 2;
     reasons.push(`Very low vowel ratio (${(vowelRatio * 100).toFixed(0)}%)`);
-  } else if (vowelRatio < 0.1 && lower.length >= 3) {
+  } else if (vowelRatio <= 0.25 && lower.length >= 4 && lower.length <= 8) {
+    // Short tokens with low (but not zero) vowel ratio — e.g. "zop5s", "mazny"
     score += 1;
-    reasons.push('Minimal vowels');
+    reasons.push('Low vowel ratio for short token');
   }
 
   if (numericRatio >= 0.4 && numericRatio < 1.0) {
@@ -214,32 +223,63 @@ export function detectBrandInDomain(
   brandTokens: string[],
 ): BrandMatchResult | null {
   const sld = candidateDomain.split('.')[0].toLowerCase();
+  const normalizedSld = normalizeHomoglyphs(sld);
+  const isHomoglyphSld = normalizedSld !== sld;
 
   for (const brand of brandTokens) {
     if (brand.length < 3) continue;
-    if (sld === brand) return null; // exact match = target domain itself
 
-    if (sld.startsWith(brand)) {
-      const remaining = sld.slice(brand.length).replace(/^[-_]/, '');
-      if (remaining.length === 0) return null; // TLD variant, handled elsewhere
-      return { brand, position: 'prefix', remaining };
-    }
+    // Check both the raw sld and the homoglyph-normalized version
+    for (const [target, isHomoglyph] of [[sld, false], [normalizedSld, isHomoglyphSld]] as [string, boolean][]) {
+      if (!isHomoglyph && target === brand) return null; // exact match = target domain itself
 
-    if (sld.endsWith(brand)) {
-      const remaining = sld.slice(0, sld.length - brand.length).replace(/[-_]$/, '');
-      if (remaining.length === 0) return null;
-      return { brand, position: 'suffix', remaining };
-    }
+      if (target.startsWith(brand)) {
+        const remaining = (isHomoglyph ? sld : target).slice(brand.length).replace(/^[-_]/, '');
+        if (remaining.length === 0 && !isHomoglyph) return null; // plain TLD variant
+        return { brand, position: 'prefix', remaining };
+      }
 
-    // Embedded: only for brands 4+ chars to limit noise
-    if (brand.length >= 4) {
-      const idx = sld.indexOf(brand);
-      if (idx > 0 && idx + brand.length < sld.length) {
-        return { brand, position: 'embedded', remaining: sld };
+      if (target.endsWith(brand)) {
+        const raw = isHomoglyph ? sld : target;
+        const remaining = raw.slice(0, raw.length - brand.length).replace(/[-_]$/, '');
+        if (remaining.length === 0 && !isHomoglyph) return null;
+        return { brand, position: 'suffix', remaining };
+      }
+
+      // Embedded: only for brands 4+ chars to limit noise
+      if (brand.length >= 4) {
+        const idx = target.indexOf(brand);
+        if (idx > 0 && idx + brand.length < target.length) {
+          return { brand, position: 'embedded', remaining: sld };
+        }
       }
     }
   }
   return null;
+}
+
+// ─── Homoglyph brand normalization ──────────────────────────────────────────────
+
+const HOMOGLYPH_TO_ALPHA: Record<string, string> = {
+  '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '9': 'g',
+};
+
+function normalizeHomoglyphs(s: string): string {
+  return s.replace(/[013457 9]/g, c => HOMOGLYPH_TO_ALPHA[c] ?? c);
+}
+
+// Generate the common digit-substituted variant of a brand token (e.g. "ofx" → "0fx")
+export function homoglyphVariants(brand: string): string[] {
+  const variants = new Set<string>();
+  // Only substitute the first different char to keep variants focused
+  for (let i = 0; i < brand.length; i++) {
+    for (const [alpha, digit] of Object.entries(HOMOGLYPH_TO_ALPHA).map(([d, a]) => [a, d] as const)) {
+      if (brand[i] === alpha) {
+        variants.add(brand.slice(0, i) + digit + brand.slice(i + 1));
+      }
+    }
+  }
+  return [...variants].filter(v => v !== brand);
 }
 
 // ─── CT brand domain discovery ───────────────────────────────────────────────────
@@ -248,36 +288,50 @@ async function fetchCtBrandDomains(brandTokens: string[], targetDomain: string):
   const primaryBrand = brandTokens[0];
   if (!primaryBrand || primaryBrand.length < 3) return [];
 
-  try {
-    const res = await fetch(
-      `https://crt.sh/?q=%25${encodeURIComponent(primaryBrand)}%25&output=json`,
-      { signal: AbortSignal.timeout(12000) },
-    );
-    if (!res.ok) return [];
+  // Include homoglyph variants of the primary brand (e.g. "ofx" → "0fx")
+  const searchTerms = [primaryBrand, ...homoglyphVariants(primaryBrand)];
 
-    const certs = (await res.json() as Array<{ name_value: string }>).slice(0, 400);
-    const results = new Set<string>();
+  const results = new Set<string>();
 
-    for (const cert of certs) {
-      if (!cert.name_value) continue;
-      for (const entry of cert.name_value.split('\n')) {
-        const clean = entry.trim().replace(/^\*\./, '').toLowerCase();
-        if (!clean) continue;
-        if (!/^[a-z0-9][a-z0-9\-.]{0,60}[a-z0-9]\.[a-z]{2,}$/.test(clean)) continue;
-        if (clean === targetDomain || clean.endsWith(`.${targetDomain}`)) continue;
-        results.add(clean);
+  await Promise.allSettled(searchTerms.map(async (term) => {
+    try {
+      const res = await fetch(
+        `https://crt.sh/?q=%25${encodeURIComponent(term)}%25&output=json`,
+        { signal: AbortSignal.timeout(12000) },
+      );
+      if (!res.ok) return;
+
+      const certs = (await res.json() as Array<{ name_value: string }>).slice(0, 300);
+
+      for (const cert of certs) {
+        if (!cert.name_value) continue;
+        for (const entry of cert.name_value.split('\n')) {
+          const clean = entry.trim().replace(/^\*\./, '').toLowerCase();
+          if (!clean) continue;
+          if (!/^[a-z0-9][a-z0-9\-.]{0,60}[a-z0-9]\.[a-z]{2,}$/.test(clean)) continue;
+          if (clean === targetDomain || clean.endsWith(`.${targetDomain}`)) continue;
+          results.add(clean);
+        }
       }
+    } catch {
+      // non-fatal
     }
+  }));
 
-    return [...results];
-  } catch {
-    return [];
-  }
+  return [...results];
 }
 
 // ─── RDAP domain age lookup ──────────────────────────────────────────────────────
 
-async function fetchRdap(domain: string): Promise<DomainAge> {
+function extractApexDomain(hostname: string): string {
+  const parts = hostname.split('.');
+  // Simple 2-label apex extraction (covers >95% of gTLDs)
+  // Does not handle compound TLDs like .co.uk — acceptable tradeoff for a free tool
+  return parts.length > 2 ? parts.slice(-2).join('.') : hostname;
+}
+
+async function fetchRdap(hostname: string): Promise<DomainAge> {
+  const domain = extractApexDomain(hostname);
   const tld = domain.split('.').pop()?.toLowerCase() ?? '';
   const server = RDAP_SERVERS[tld];
   if (!server) return { bucket: 'unknown' };
